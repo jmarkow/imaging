@@ -10,14 +10,15 @@ ave_movie_fs=60; % frame rate of average movie
 movie_fs=5;
 debug=0; % show debug image?
 baseline=0; % 0 for mean, 1 for median, 2 for trimmed mean
-filt_rad=30; % disk filter radius
-filt_alpha=25;
+filt_rad=25; % disk filter radius
+filt_alpha=20;
 lims=1;
 trim_per=20;
-save_dir='proc';
+save_dir='proc2';
 high_pass=0;
 activity_map='gray';
 cb_height=.03;
+motion_correction=1; % 0 for no correction, 1 for correction
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -47,6 +48,8 @@ for i=1:2:nparams
 			save_dir=varargin{i+1};
 		case 'filt_alpha'
 			filt_alpha=varargin{i+1};
+		case 'motion_correction'
+			motion_correction=varargin{i+1};
 	end
 end
 
@@ -102,27 +105,26 @@ h = fspecial('gaussian',filt_rad, filt_alpha); % could use a gaussian as well
 
 disp('Processing image data');
 
-[nblanks formatstring]=fb_progressbar(100);
-fprintf(1,['Progress:  ' blanks(nblanks)]);
 
 
 if debug
-	fig=figure('visible','on');
+	fig=figure('visible','on','renderer','zbuffer','PaperPositionMode','auto');
 else
-	fig=figure('visible','off');
+	fig=figure('visible','off','renderer','zbuffer','PaperpositionMode','auto');
 end
 
 
 for i=1:length(mov_listing)
+
+	disp(['Processing file ' num2str(i) ' of ' num2str(length(mov_listing))]);
+	disp([mov_listing{i}]);
 
 	[path,file,ext]=fileparts(mov_listing{i});
 
 	writer_obj=VideoWriter(fullfile(DIR,save_dir,[file '_dff.avi']));
 	writer_obj.FrameRate=movie_fs;
 
-	open(writer_obj);
-
-	fprintf(1,formatstring,round((i/length(mov_listing))*100));
+	open(writer_obj);	
 
 	% compute sonogram of mic_data
 
@@ -131,12 +133,49 @@ for i=1:length(mov_listing)
 	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
 	[rows,columns,frames]=size(mov_data);
 
-	mov_filt=imfilter(mov_data,h);
-	%mov_filt=mov_data;
+	
+	if motion_correction
 
+		disp('Performing motion correction...');
+
+		[nblanks formatstring]=fb_progressbar(100);
+		fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+		% have user select file for motion correction template
+
+
+		if i==1
+
+			[filename,pathname]=uigetfile({'*.mat'},'Pick a movie file to extract the template from',pwd);
+			load(fullfile(pathname,filename),'mov_data');
+
+			% correction template
+
+			correction_template=trimmean(mov_data,20,'round',3); % average
+			%correction_template=mov_data(:,:,1);	
+			correction_fft=fft2(correction_template);
+
+		end
+
+		for j=1:frames
+
+			fprintf(1,formatstring,round((j/frames)*100));
+			[output Greg]=dftregistration(correction_fft,fft2(mov_data(:,:,j)),10);
+			mov_data(:,:,j)=abs(ifft2(Greg));
+		end
+
+
+		fprintf(1,'\n');
+
+		% save the motion corrected data
+
+	end
+
+	mov_filt=imfilter(mov_data,h);
+	
 	[b,a]=ellip(4,.2,40,[1]/(20/2),'high');
 
-	% warning: high_pass will throw off df/f
+	% warning: high_pass will throw off df/f, would advise not to use for now
 
 	if high_pass==1
 		for j=1:rows
@@ -159,15 +198,13 @@ for i=1:length(mov_listing)
 
 	std_fact=std(mov_filt,[],3);
 	clearvars hline;
-	
+
 	set(0,'currentfigure',fig);
-	
+
 	figure(fig);
 	subplot(3,1,1);cla;
 	imagesc(t,f,template_image);axis xy;hold on;
 	colormap(hot);freezeColors();
-
-	%mov_filt=hist_eq(mov_filt,255);
 
 	if high_pass
 		for j=1:frames
@@ -200,7 +237,16 @@ for i=1:length(mov_listing)
 		movie_idx(j)=idx;
 	end
 
+	
+	disp('Writing df/f movie...');
+	
+	
+	[nblanks formatstring]=fb_progressbar(100);
+	fprintf(1,['Progress:  ' blanks(nblanks)]);
+
 	for j=1:frames
+
+		fprintf(1,formatstring,round((j/frames)*100));
 
 		set(0,'currentfigure',fig);
 
@@ -224,13 +270,16 @@ for i=1:length(mov_listing)
 		hc=colorbar('location','southoutside','position',[pos(1) pos(2)-cb_height*2 pos(3) cb_height]);
 		set(hc,'xaxisloc','bottom');
 
-		frame=getframe(fig);
+		%frame=getframe(fig);
+		frame=im2frame(hardcopy(fig,'-Dzbuffer','-r0'));
 		writeVideo(writer_obj,frame);
 
 		if debug==1 pause(.1); end
 
 
 	end
+
+	fprintf(1,'\n');
 
 	close(writer_obj);
 
@@ -241,7 +290,15 @@ for i=1:length(mov_listing)
 
 	% raw movie
 
+	disp('Writing raw movie...');
+	
+	[nblanks formatstring]=fb_progressbar(100);
+	fprintf(1,['Progress:  ' blanks(nblanks)]);
+
 	for j=1:frames
+
+		fprintf(1,formatstring,round((j/frames)*100));
+
 
 		set(0,'currentfigure',fig);
 
@@ -265,12 +322,16 @@ for i=1:length(mov_listing)
 		hc=colorbar('location','southoutside','position',[pos(1) pos(2)-cb_height*2 pos(3) cb_height]);
 		set(hc,'xaxisloc','bottom');
 
-		frame=getframe(fig);
+		frame=im2frame(hardcopy(fig,'-Dzbuffer','-r0'));
 		writeVideo(writer_obj,frame);
 
 		if debug==1 pause(.1); end
 
 	end
+
+	fprintf(1,'\n');
+
+	disp('Writing maximum projection');
 
 	close(writer_obj);
 
@@ -298,8 +359,6 @@ for i=1:length(mov_listing)
 	end
 end
 
-fprintf(1,'\n');
-
 for i=1:size(mov_ave,3)
 	mov_ave(:,:,i)=mov_ave(:,:,i)./ave_counter(i);
 end
@@ -309,28 +368,5 @@ end
 
 % establish 20-30 hz time-frame from min to max timestamp, each frame from each file counts once
 % (counts toward the closets time point)
-
-end
-
-function new_movie = hist_eq(matrix,max_val)
-	%
-	%
-%
-
-matrix=uint8(matrix);
-vals=matrix(:);
-bins=0:max_val;
-
-density=hist(vals,bins);
-density=density./sum(density);
-
-cdf=cumsum(density);
-
-new_movie=cdf(matrix+1);
-
-max(new_movie)
-min(new_movie)
-
-new_movie=uint8(new_movie*max_val);
 
 end
