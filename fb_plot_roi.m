@@ -113,10 +113,10 @@ for i=1:length(mov_listing)
 
 	ax=[];
 	save_fig=figure('visible','off');
-	set(save_fig,'position',[100 100 500 900],'PaperPositionMode','auto')
+	set(save_fig,'position',[100 100 500 200*nplots],'PaperPositionMode','auto')
 	clf;
 	
-	ax(1)=subaxis(nplots,1,1,1,1,2,'spacingvert',.012,'marginbottom',.15);
+	ax(1)=subaxis(nplots,1,1,1,1,1,'spacingvert',.012,'marginbottom',.15);
 
 	imagesc(t,f./1e3,song_image);axis xy;box off;
 	colormap(sono_colormap);
@@ -127,7 +127,7 @@ for i=1:length(mov_listing)
 
 	for j=1:nplots-1
 
-		ax(j+1)=subaxis(nplots,1,1,j+2,1,1,'spacingvert',.012,'marginbottom',.15);
+		ax(j+1)=subaxis(nplots,1,1,j+1,1,1,'spacingvert',.012,'marginbottom',.15);
 		set(gca,'TickDir','out','linewidth',1,'FontSize',12);
 		plot(timevec,roi_t(j,:),'color',colors(j,:));
 		box off;
@@ -181,11 +181,11 @@ end
 
 
 save_fig=figure('visible','off');
-set(save_fig,'position',[100 100 500 900],'PaperPositionMode','auto','visible','off')
+set(save_fig,'position',[100 100 500 200*nplots],'PaperPositionMode','auto','visible','off')
 clf;
 
 ax=[];
-ax(1)=subaxis(nplots,1,1,1,1,2,'spacingvert',.012,'marginbottom',.15);
+ax(1)=subaxis(nplots,1,1,1,1,1,'spacingvert',.012,'marginbottom',.15);
 
 imagesc(t,f./1e3,song_image);axis xy;box off;
 colormap(sono_colormap);
@@ -197,7 +197,7 @@ set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
 
 for i=1:nplots-1
 
-	ax(i+1)=subaxis(nplots,1,1,i+2,1,1,'spacingvert',.012,'marginbottom',.15);
+	ax(i+1)=subaxis(nplots,1,1,i+1,1,1,'spacingvert',.012,'marginbottom',.15);
 	set(gca,'TickDir','out','linewidth',1,'FontSize',12);
 
 	% plot confidence bars

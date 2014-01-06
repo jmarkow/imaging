@@ -15,7 +15,7 @@ filt_alpha=10;
 lims=1;
 trim_per=20;
 save_dir='proc';
-roi_map='lines';
+roi_map=colormap('lines');
 save_dir='roi';
 
 if mod(nparams,2)>0
@@ -109,10 +109,10 @@ while 1>0
 	if isempty(h), break; end
 
 	set(0,'CurrentFigure',overview_fig);
-	plot(h(:,1),h(:,2),'y-','linewidth',1.5,'color',roi_map(counter,:));
+	plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_map(counter,:));
 
 	set(0,'CurrentFigure',save_fig);
-	plot(h(:,1),h(:,2),'y-','linewidth',1.5,'color',roi_map(counter,:));
+	plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_map(counter,:));
 	
 
 	set(0,'CurrentFigure',overview_fig);
