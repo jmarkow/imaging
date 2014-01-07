@@ -6,10 +6,10 @@ function mov_ave=fb_mov_proc(DIR,varargin)
 
 nparams=length(varargin);
 fs=24.414e3;
-ave_movie_fs=60; % frame rate of average movie
-movie_fs=5;
+ave_playback_fs=60; % frame rate of average movie
+playback_fs=20;
 debug=0; % show debug image?
-baseline=0; % 0 for mean, 1 for median, 2 for trimmed mean
+baseline=3; % 0 for mean, 1 for median, 2 for trimmed mean
 filt_rad=25; % disk filter radius
 filt_alpha=20;
 lims=1;
@@ -19,6 +19,8 @@ high_pass=0;
 activity_map='gray';
 cb_height=.03;
 motion_correction=1; % 0 for no correction, 1 for correction
+motion_crop=20; % allowable crop for motion correction (deleted for later movies)
+per=10;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -28,8 +30,8 @@ for i=1:2:nparams
 	switch lower(varargin{i})	
 		case 'fs'
 			fs=varargin{i+1};
-		case 'movie_fs'
-			movie_fs=varargin{i+1};
+		case 'playback_fs'
+			playback_fs=varargin{i+1};
 		case 'debug'
 			debug=varargin{i+1};
 		case 'baseline'
@@ -40,8 +42,8 @@ for i=1:2:nparams
 			lims=varargin{i+1};
 		case 'trim_per'
 			trim_per=varargin{i+1};
-		case 'ave_movie_fs'
-			ave_movie_fs=varargin{i+1};
+		case 'ave_playback_fs'
+			ave_playback_fs=varargin{i+1};
 		case 'high_pass'
 			high_pass=varargin{i+1};
 		case 'save_dir'
@@ -79,7 +81,6 @@ disp('Determining first and last frame of the average movie...');
 [nblanks formatstring]=fb_progressbar(100);
 fprintf(1,['Progress:  ' blanks(nblanks)]);
 
-
 for i=1:length(mov_listing)
 
 	fprintf(1,formatstring,round((i/length(mov_listing))*100));
@@ -96,7 +97,7 @@ end
 
 fprintf(1,'\n');
 
-ave_time=min_tmp:1/ave_movie_fs*fs:max_tmp;
+ave_time=min_tmp:1/ave_playback_fs*fs:max_tmp;
 ave_frames=length(ave_time);
 ave_counter=zeros(1,length(ave_time));
 mov_ave=zeros(height,width,ave_frames);
@@ -106,13 +107,11 @@ h = fspecial('gaussian',filt_rad, filt_alpha); % could use a gaussian as well
 disp('Processing image data');
 
 
-
 if debug
 	fig=figure('visible','on','renderer','zbuffer','PaperPositionMode','auto');
 else
 	fig=figure('visible','off','renderer','zbuffer','PaperpositionMode','auto');
 end
-
 
 for i=1:length(mov_listing)
 
@@ -121,58 +120,115 @@ for i=1:length(mov_listing)
 
 	[path,file,ext]=fileparts(mov_listing{i});
 
-	writer_obj=VideoWriter(fullfile(DIR,save_dir,[file '_dff.avi']));
-	writer_obj.FrameRate=movie_fs;
-
-	open(writer_obj);	
-
 	% compute sonogram of mic_data
 
-	load(fullfile(DIR,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data');
+	load(fullfile(DIR,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs');
 
-	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
+	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);
 	[rows,columns,frames]=size(mov_data);
-
+	
+	mov_filt=imfilter(mov_data,h);
 	
 	if motion_correction
 
+		new_mov_filt=zeros(rows-2*motion_crop,columns-2*motion_crop,frames);
+
 		disp('Performing motion correction...');
 
-		[nblanks formatstring]=fb_progressbar(100);
-		fprintf(1,['Progress:  ' blanks(nblanks)]);
+		%[nblanks formatstring]=fb_progressbar(100);
+		%fprintf(1,['Progress:  ' blanks(nblanks)]);
 
 		% have user select file for motion correction template
-
-
+		
 		if i==1
 
 			[filename,pathname]=uigetfile({'*.mat'},'Pick a movie file to extract the template from',pwd);
-			load(fullfile(pathname,filename),'mov_data');
+			template=load(fullfile(pathname,filename),'mov_data');
 
-			% correction template
+			% correction template, select coordinates
 
-			correction_template=trimmean(mov_data,20,'round',3); % average
-			%correction_template=mov_data(:,:,1);	
-			correction_fft=fft2(correction_template);
+			corr_tmp=imfilter(template.mov_data(:,:,:),h);
+			%corr_tmp=mean(corr_tmp,3); % average
+
+			corr_tmp=corr_tmp(:,:,1); % take the first frame
+
+			%corr_tmp(corr_tmp>clim(2))=clim(2);
+			%corr_tmp=max(corr_tmp-clim(1),0);
+			%corr_tmp=corr_tmp./max(corr_tmp(:));
+
+			overview_fig=figure('Toolbar','none','Menubar','none');
+			overview_img=imshow(corr_tmp./max(corr_tmp(:)));
+			hold on;	
+
+			overview_scroll=imscrollpanel(overview_fig,overview_img);
+			imoverview(overview_img);
+			contrast_handle=imcontrast(overview_img);
+
+			uiwait(contrast_handle);
+			clims=caxis();
+
+			rect_handle=imrect(get(overview_fig,'CurrentAxes'));
+
+			rect_pos=wait(rect_handle);
+
+			y_segment=round([rect_pos(2):rect_pos(2)+rect_pos(4)]);
+			y_segment(y_segment>rows)=[];
+
+			x_segment=round([rect_pos(1):rect_pos(1)+rect_pos(3)]);
+			x_segment(x_segment>columns)=[];
+
+			corr_roi=corr_tmp(y_segment,x_segment);
+
+			clim(1)=prctile(corr_roi(:),40);
+			clim(2)=prctile(corr_roi(:),60);
+
+			corr_roi(corr_roi>clim(2))=clim(2);
+			corr_roi=corr_roi-clim(1);
+			corr_roi=max(corr_roi,0);
+			corr_roi=corr_roi./clim(2);
+
+			% normalize for motion correction
+			
+			correction_fft=fft2(corr_roi);
+			close(overview_fig);
 
 		end
+
 
 		for j=1:frames
 
-			fprintf(1,formatstring,round((j/frames)*100));
-			[output Greg]=dftregistration(correction_fft,fft2(mov_data(:,:,j)),10);
-			mov_data(:,:,j)=abs(ifft2(Greg));
+			%fprintf(1,formatstring,round((j/frames)*100));	
+			tmp=mov_filt(y_segment,x_segment,j);
+		
+			clim(1)=prctile(tmp(:),40);
+			clim(2)=prctile(tmp(:),60);
+
+			tmp(tmp>clim(2))=clim(2);
+			tmp=tmp-clim(1);
+			tmp=max(tmp,0);
+			tmp=tmp./clim(2);
+
+			[output Greg]=dftregistration(correction_fft,fft2(tmp),100);
+		
+			output
+
+			shift=round(output(3:4));
+			shift(shift>motion_crop)=motion_crop;
+
+			mov_filt(:,:,j)=circshift(mov_filt(:,:,j),[shift]);
+
 		end
 
-
-		fprintf(1,'\n');
+		new_mov_filt=mov_filt(motion_crop:rows-motion_crop,motion_crop:columns-motion_crop,:);
+		mov_filt=new_mov_filt;
 
 		% save the motion corrected data
 
+		save(fullfile(save_dir,[file '_motioncorrected.mat']),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','motion_crop');
+
+
 	end
 
-	mov_filt=imfilter(mov_data,h);
-	
 	[b,a]=ellip(4,.2,40,[1]/(20/2),'high');
 
 	% warning: high_pass will throw off df/f, would advise not to use for now
@@ -186,14 +242,21 @@ for i=1:length(mov_listing)
 
 	end
 
+	writer_obj=VideoWriter(fullfile(DIR,save_dir,[file '_dff.avi']));
+	writer_obj.FrameRate=playback_fs;
+
+	open(writer_obj);	
+
 	mov_norm=mov_filt;
 
 	if baseline==0
 		norm_fact=mean(mov_filt,3);
 	elseif baseline==1
 		norm_fact=median(mov_filt,3);
-	else
+	elseif baseline==2
 		norm_fact=trimmean(mov_filt,trim_per,'round',3);
+	else
+		norm_fact=prctile(mov_filt,per,3);
 	end
 
 	std_fact=std(mov_filt,[],3);
@@ -237,10 +300,9 @@ for i=1:length(mov_listing)
 		movie_idx(j)=idx;
 	end
 
-	
+
 	disp('Writing df/f movie...');
-	
-	
+
 	[nblanks formatstring]=fb_progressbar(100);
 	fprintf(1,['Progress:  ' blanks(nblanks)]);
 
@@ -284,14 +346,14 @@ for i=1:length(mov_listing)
 	close(writer_obj);
 
 	writer_obj=VideoWriter(fullfile(DIR,save_dir,[file '_raw.avi']));
-	writer_obj.FrameRate=movie_fs;
+	writer_obj.FrameRate=playback_fs;
 
 	open(writer_obj);
 
 	% raw movie
 
 	disp('Writing raw movie...');
-	
+
 	[nblanks formatstring]=fb_progressbar(100);
 	fprintf(1,['Progress:  ' blanks(nblanks)]);
 
@@ -352,17 +414,7 @@ for i=1:length(mov_listing)
 	% maybe save the average as a 4-d array so you can remove outliers
 	% save the processed data nad 
 
-	for j=1:frames
-		idx=movie_idx(j);
-		mov_ave(:,:,idx)=mov_ave(:,:,idx)+mov_filt(:,:,j);
-		ave_counter(idx)=ave_counter(idx)+1;
-	end
 end
-
-for i=1:size(mov_ave,3)
-	mov_ave(:,:,i)=mov_ave(:,:,i)./ave_counter(i);
-end
-
 
 % for average, pre-flight check to make sure camera is on
 
