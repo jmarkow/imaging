@@ -21,6 +21,7 @@ cb_height=.03;
 motion_correction=1; % 0 for no correction, 1 for correction
 motion_crop=20; % allowable crop for motion correction (deleted for later movies)
 per=8;
+outlier_detect=1;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -52,8 +53,12 @@ for i=1:2:nparams
 			filt_alpha=varargin{i+1};
 		case 'motion_correction'
 			motion_correction=varargin{i+1};
+		case 'outlier_detect'
+			outlier_detect=varargin{i+1};
 	end
 end
+
+outlier_flag=0;
 
 if nargin<1 | isempty(DIR), DIR=pwd; end
 
@@ -113,7 +118,13 @@ else
 	fig=figure('visible','off','renderer','zbuffer','PaperpositionMode','auto');
 end
 
+old_save_dir=save_dir;
+
 for i=1:length(mov_listing)
+
+	save_dir=old_save_dir;
+	outlier_flag=0;
+	motion_flag=0;
 
 	disp(['Processing file ' num2str(i) ' of ' num2str(length(mov_listing))]);
 	disp([mov_listing{i}]);
@@ -128,8 +139,49 @@ for i=1:length(mov_listing)
 	[rows,columns,frames]=size(mov_data);
 	
 	mov_filt=imfilter(mov_data,h);
+
+	% first do outlier detection
+
 	
-	if motion_correction
+	if outlier_detect
+
+		save_dir='junk';
+		if ~exist(save_dir,'dir'); mkdir(save_dir); end
+
+		% get the median
+
+		mov_med=median(mov_filt,3);
+
+		% get the mad
+
+		mov_mad=mad(mov_filt,1,3);
+
+		% do any frames exceed the limit
+
+		mask1=mov_med-mov_mad*6;
+		mask2=mov_med+mov_mad*6;
+
+		len=rows*columns;
+
+		for j=1:frames
+
+			flag1=mov_filt(:,:,j)<mask1;
+			flag2=mov_filt(:,:,j)>mask2;
+
+			flag1=sum(flag1(:)==1)>len*.1;
+			flag2=sum(flag2(:)==1)>len*.1;	
+
+			if flag1 || flag2
+				warning('Outlier frame %g detected',j);
+				outlier_flag=1;
+			end
+
+
+		end
+
+	end
+
+	if motion_correction && ~outlier_flag
 
 		new_mov_filt=zeros(rows-2*motion_crop,columns-2*motion_crop,frames);
 
@@ -140,17 +192,22 @@ for i=1:length(mov_listing)
 
 		% have user select file for motion correction template
 		
-		if i==1
+		if ~motion_flag
 
-			[filename,pathname]=uigetfile({'*.mat'},'Pick a movie file to extract the template from',pwd);
-			template=load(fullfile(pathname,filename),'mov_data');
+			%[filename,pathname]=uigetfile({'*.mat'},'Pick a movie file to extract the template from',pwd);
+			%template=load(fullfile(pathname,filename),'mov_data');
 
 			% correction template, select coordinates
 
-			corr_tmp=imfilter(template.mov_data(:,:,:),h);
+			%corr_tmp=imfilter(template.mov_data(:,:,:),h);
 			%corr_tmp=mean(corr_tmp,3); % average
 
-			corr_tmp=corr_tmp(:,:,1); % take the first frame
+			%corr_tmp=corr_tmp(:,:,1); % take the first frame
+
+			disp('Motion correction region selection...');
+			dips('Drag the rectangle to enclose the template region and double-click to finish...');
+
+			corr_tmp=mov_filt(:,:,1);
 
 			%corr_tmp(corr_tmp>clim(2))=clim(2);
 			%corr_tmp=max(corr_tmp-clim(1),0);
@@ -194,6 +251,8 @@ for i=1:length(mov_listing)
 			
 			correction_fft=fft2(corr_roi);
 			close(overview_fig);
+
+			motion_flag=1;
 
 		end
 
@@ -247,6 +306,9 @@ for i=1:length(mov_listing)
 
 	end
 
+
+
+
 	writer_obj=VideoWriter(fullfile(DIR,save_dir,[file '_dff.avi']));
 	writer_obj.FrameRate=playback_fs;
 
@@ -268,8 +330,7 @@ for i=1:length(mov_listing)
 	clearvars hline;
 
 	set(0,'currentfigure',fig);
-
-	figure(fig);
+    
 	subplot(3,1,1);cla;
 	imagesc(t,f,template_image);axis xy;hold on;
 	colormap(hot);freezeColors();
