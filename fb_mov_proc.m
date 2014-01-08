@@ -119,12 +119,12 @@ else
 end
 
 old_save_dir=save_dir;
+motion_flag=0;
 
 for i=1:length(mov_listing)
 
 	save_dir=old_save_dir;
 	outlier_flag=0;
-	motion_flag=0;
 
 	disp(['Processing file ' num2str(i) ' of ' num2str(length(mov_listing))]);
 	disp([mov_listing{i}]);
@@ -145,7 +145,6 @@ for i=1:length(mov_listing)
 	
 	if outlier_detect
 
-		save_dir='junk';
 		if ~exist(save_dir,'dir'); mkdir(save_dir); end
 
 		% get the median
@@ -174,6 +173,7 @@ for i=1:length(mov_listing)
 			if flag1 || flag2
 				warning('Outlier frame %g detected',j);
 				outlier_flag=1;
+				save_dir='junk';
 			end
 
 
