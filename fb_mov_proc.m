@@ -205,7 +205,7 @@ for i=1:length(mov_listing)
 			%corr_tmp=corr_tmp(:,:,1); % take the first frame
 
 			disp('Motion correction region selection...');
-			dips('Drag the rectangle to enclose the template region and double-click to finish...');
+			disp('Drag the rectangle to enclose the template region and double-click to finish...');
 
 			corr_tmp=mov_filt(:,:,1);
 
