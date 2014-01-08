@@ -10,17 +10,17 @@ ave_playback_fs=60; % frame rate of average movie
 playback_fs=20;
 debug=0; % show debug image?
 baseline=3; % 0 for mean, 1 for median, 2 for trimmed mean
-filt_rad=25; % disk filter radius
-filt_alpha=20;
+filt_rad=15; % disk filter radius
+filt_alpha=5;
 lims=1;
 trim_per=20;
-save_dir='proc2';
+save_dir='proc';
 high_pass=0;
 activity_map='gray';
 cb_height=.03;
 motion_correction=1; % 0 for no correction, 1 for correction
 motion_crop=20; % allowable crop for motion correction (deleted for later movies)
-per=10;
+per=8;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -179,13 +179,16 @@ for i=1:length(mov_listing)
 
 			corr_roi=corr_tmp(y_segment,x_segment);
 
-			clim(1)=prctile(corr_roi(:),40);
-			clim(2)=prctile(corr_roi(:),60);
+			clim(1)=prctile(corr_roi(:),30);
+			clim(2)=prctile(corr_roi(:),70);
 
 			corr_roi(corr_roi>clim(2))=clim(2);
 			corr_roi=corr_roi-clim(1);
 			corr_roi=max(corr_roi,0);
 			corr_roi=corr_roi./clim(2);
+			
+			corr_roi=corr_roi-mean(corr_roi(:));
+			corr_roi=corr_roi./std(corr_roi(:));
 
 			% normalize for motion correction
 			
@@ -200,16 +203,18 @@ for i=1:length(mov_listing)
 			%fprintf(1,formatstring,round((j/frames)*100));	
 			tmp=mov_filt(y_segment,x_segment,j);
 		
-			clim(1)=prctile(tmp(:),40);
-			clim(2)=prctile(tmp(:),60);
+			clim(1)=prctile(tmp(:),30);
+			clim(2)=prctile(tmp(:),70);
 
 			tmp(tmp>clim(2))=clim(2);
 			tmp=tmp-clim(1);
 			tmp=max(tmp,0);
 			tmp=tmp./clim(2);
 
-			[output Greg]=dftregistration(correction_fft,fft2(tmp),100);
-		
+			tmp=tmp-mean(tmp(:));
+			tmp=tmp./std(tmp(:));
+
+			[output Greg]=dftregistration(correction_fft,fft2(tmp),100);	
 			output
 
 			shift=round(output(3:4));

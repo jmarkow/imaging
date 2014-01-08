@@ -8,11 +8,12 @@ function roi_ave=fb_plot_roi(ROIS,varargin)
 
 colors=colormap('lines');
 sono_colormap='hot';
-baseline=0;
+baseline=3;
 ave_fs=80;
 save_dir='roi';
 template=[];
 fs=24.414e3;
+per=8;
 
 nparams=length(varargin);
 
@@ -36,6 +37,8 @@ for i=1:2:nparams
 			template=varargin{i+1};
 		case 'fs'
 			fs=varargin{i+1};
+		case 'per'
+			per=vargin{i+1};
 	end
 end
 
@@ -62,7 +65,7 @@ ave_time=0:1/ave_fs:length(mic_data)/fs;
 
 % need to interpolate the average onto a new time bases
 
-roi_ave.raw=zeros(roi_n,frames,length(mov_listing));
+roi_ave.raw={};
 roi_ave.interp=zeros(roi_n,length(ave_time),length(mov_listing));
 
 disp('Generating single trial figures...');
@@ -81,14 +84,6 @@ for i=1:length(mov_listing)
 
 	[song_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
 
-	if baseline==0
-		norm_fact=mean(mov_data,3);
-	elseif baseline==1
-		norm_fact=median(mov_data,3);
-	else
-		norm_fact=trimmean(mov_data,trim_per,'round',3);
-	end
-
 	mov_norm=mov_data;
 
 	%for j=1:frames
@@ -97,6 +92,7 @@ for i=1:length(mov_listing)
 
 	% roi_traces
 
+	[rows,columns,frames]=size(mov_data);
 	roi_t=zeros(roi_n,frames);
 
 	for j=1:frames
@@ -127,6 +123,9 @@ for i=1:length(mov_listing)
 
 	for j=1:nplots-1
 
+		size(timevec)
+		size(roi_t(j,:))
+
 		ax(j+1)=subaxis(nplots,1,1,j+1,1,1,'spacingvert',.012,'marginbottom',.15);
 		set(gca,'TickDir','out','linewidth',1,'FontSize',12);
 		plot(timevec,roi_t(j,:),'color',colors(j,:));
@@ -148,12 +147,27 @@ for i=1:length(mov_listing)
 	close([save_fig]);
 	save(fullfile(save_dir,[save_file '.mat']),'roi_t','frame_idx');
 
-	roi_ave.raw(:,:,i)=roi_t; % store for average
+	roi_ave.raw{i}=roi_t; % store for average
 
 	% 1d interpolate all rois to common frame
-	
+
 	for j=1:roi_n
-		yy=interp1(frame_idx./fs,roi_t(j,:),ave_time,'spline');
+
+		tmp=roi_t(j,:);
+
+		if baseline==0
+			norm_fact=mean(tmp,3);
+		elseif baseline==1
+			norm_fact=median(tmp,3);
+		elseif baseline==2
+			norm_fact=trimmean(tmp,trim_per,'round',3);
+		else
+			norm_fact=prctile(tmp,per);
+		end
+
+		dff=((tmp-norm_fact)./norm_fact).*100;
+
+		yy=interp1(frame_idx./fs,dff,ave_time,'spline');
 		roi_ave.interp(j,:,i)=yy;
 	end
 
@@ -213,7 +227,7 @@ for i=1:nplots-1
 	if i<nplots-1
 		set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
 	end	
-	
+
 	axis tight;
 
 end

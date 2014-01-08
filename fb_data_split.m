@@ -95,6 +95,11 @@ rising_edges=rising_edges(:);
 falling_edges=find(SYNC_SIGNAL(idx)>high&SYNC_SIGNAL(idx+1)<low);
 falling_edges=unique([1;falling_edges(:);length(SYNC_SIGNAL)]);
 
+size(rising_edges)
+size(falling_edges)
+
+falling_edges=falling_edges(1:length(rising_edges)+1);
+
 % first rising edge is the first data split
 
 disp('Detecting gaps in sync signal...');

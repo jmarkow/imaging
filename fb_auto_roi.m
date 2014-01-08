@@ -1,4 +1,4 @@
-function EXTRACTED_ROI=fb_auto_roi(DIR,varargin)
+function [EXTRACTED_ROI,STATS]=fb_auto_roi(DIR,varargin)
 %fb_select_roi selects an arbitrary number of roi's for plotting
 %
 %
@@ -11,12 +11,11 @@ function EXTRACTED_ROI=fb_auto_roi(DIR,varargin)
 nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
 filt_rad=30; % disk filter radius
-filt_alpha=20;
+filt_alpha=10;
 lims=1;
-trim_per=20;
 save_dir='proc';
 roi_map=colormap('lines');
-save_dir='auto_roi';
+save_dir='roi';
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -59,32 +58,21 @@ mkdir(save_dir);
 
 h=fspecial('gaussian',filt_rad,filt_alpha);
 
-mov_filt=ones(1,3)*1/3;
-
-%for i=1:rows
-%	i
-%	for j=1:columns
-%		mov_data(i,j)=conv(mov_data(i,j),mov_filt,'same');
-%	end
-%end
-
 mov_data=imfilter(mov_data,h);
-baseline=repmat(prctile(mov_data,10,3),[1 1 frames]);
+baseline=repmat(prctile(mov_data,8,3),[1 1 frames]);
 
-mov_data=((mov_data-baseline)./baseline).*100;
-max_proj=max(mov_data,[],3);
-max_proj=medfilt2(max_proj,[10 10]); % get rid of salt and pepper noise
+dff=((mov_data-baseline)./baseline).*100;
+max_proj=max(dff,[],3);
 max_proj=max(max_proj./max(max_proj(:)),0); % convert to [0,1]
+max_proj=medfilt2(max_proj,[20 20]); 
 
-% need to smooth in time as well
+raw_proj=max(mov_data,[],3);
+clims(1)=prctile(raw_proj(:),lims);
+clims(2)=prctile(raw_proj(:),100-lims);
 
 EXTRACTED_ROI={};
 
 [rows,columns]=size(max_proj);
-
-[xi,yi]=meshgrid(1:columns,1:rows); % collect all coordinates into xi and yi
-exit_flag=0;
-counter=1;
 
 slmin=min(max_proj(:));
 slmax=max(max_proj(:));
@@ -97,21 +85,44 @@ hsl = uicontrol(slider_fig,'Style','slider','Min',slmin,'Max',slmax,...
              'Position',[20 10 200 20]);
 set(hsl,'Callback',{@slider_callback,slider_fig,max_proj})
 
+disp('Press any key to use current threshold');
 pause();
 threshold=get(hsl,'value');
+close(slider_fig);
 
 % convert threshold to [0,1)
 
 threshold=threshold;
 new_image=im2bw(max_proj,threshold);
+
+% basic morphological operators before conncomp 
+
+new_image=bwmorph(new_image,'fill');
+new_image=bwmorph(new_image,'clean');
+new_image=bwmorph(new_image,'dilate');
+
+% collect some basic stats if we want to exclude later
+
 conn_comp=bwconncomp(new_image);
+STATS=regionprops(conn_comp,'eccentricity','majoraxislength','minoraxislength','convexhull');
+
+% get coordinates and draw ROIs on maximum projection
+
+save_fig=figure('Visible','off');
+imshow(raw_proj);caxis(clims);
+colormap(gray);
+hold on;
 
 for i=1:length(conn_comp.PixelIdxList);
 	[xi,yi]=ind2sub(size(max_proj),conn_comp.PixelIdxList{i});
-	EXTRACTED_ROI{i}=[xi(:) yi(:)];
+	EXTRACTED_ROI{i}=[xi(:) yi(:)]; % get the coordinates
+	tmp=STATS(i).ConvexHull;
+	plot(tmp(:,1),tmp(:,2),'-','linewidth',2,'color',roi_map(i,:));
 end
 
-
+fb_multi_fig_save(save_fig,save_dir,'roi_map','tiff','res','100');
+close(save_fig);
+save(fullfile(save_dir,'roi_data.mat'),'EXTRACTED_ROI','STATS');
 
 end
 

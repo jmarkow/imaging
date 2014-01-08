@@ -619,6 +619,8 @@ for i=1:length(USED_FILENAMES)
 	fs=FS;
 	movie_fs=MOVIE_FS;
 
+	% save an initial baseline estimate?
+
 	save(fullfile(OUT_DIR,'mov',[ file '_' sprintf('%04.0f',chunk) '.mat' ]),...
 		'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs');
 
