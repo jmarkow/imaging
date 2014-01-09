@@ -25,6 +25,7 @@ outlier_mads=6; % number of median absolute deviations from the median a pixel m
 		% to be designated an outlier
 outlier_frac=.1; % fraction of pixels that must be outliers in a single frame to reject a
 		 % movie
+junk_dir='junk';
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -60,6 +61,8 @@ for i=1:2:nparams
 			outlier_mads=varargin{i+1};
 		case 'outlier_frac'
 			outlier_frac=varargin{i+1};
+		case 'junk_dir'
+			junk_dir=varargin{i+1};
 	end
 end
 
@@ -72,6 +75,13 @@ if ~exist(fullfile(DIR,save_dir),'dir')
 else
 	rmdir(fullfile(DIR,save_dir),'s');
 	mkdir(fullfile(DIR,save_dir));
+end
+
+if ~exist(fullfile(DIR,junk_dir),'dir')
+	mkdir(fullfile(DIR,junk_dir));
+else
+	rmdir(fullfile(DIR,junk_dir),'s');
+	mkdir(fullfile(DIR,junk_dir));
 end
 
 mov_listing=dir(fullfile(DIR,'*.mat'));
@@ -150,7 +160,6 @@ for i=1:length(mov_listing)
 	
 	if outlier_detect
 
-		if ~exist(save_dir,'dir'); mkdir(save_dir); end
 
 		% get the median
 
@@ -178,13 +187,16 @@ for i=1:length(mov_listing)
 			if flag1 || flag2
 				warning('Outlier frame %g detected',j);
 				outlier_flag=1;
-				save_dir='junk';
+				save_dir=junk_dir;
+				break;
 			end
 
 
 		end
 
 	end
+
+
 
 	if motion_correction && ~outlier_flag
 
