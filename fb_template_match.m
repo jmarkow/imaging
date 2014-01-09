@@ -263,7 +263,6 @@ if extract_sounds
 			extract_hits(sorted_syllable,filenames,act_templatesize,round(fs*padding));
 
 		[samples,trials]=size(mic_data);
-		mkdir(fullfile(out_dir,'gif'));
 
 		% write out sonograms for the hits
 
@@ -284,7 +283,8 @@ if extract_sounds
 
 		% each rising edge indicates a new frame, map onto time from onset
 
-		extract_movies(rise_data,fall_data,used_filenames,out_dir,im_resize,movie_fs,mic_data,fs);
+		extract_movies(rise_data,fall_data,used_filenames,out_dir,im_resize,movie_fs,...
+			mic_data,fs,min_f,max_f);
 
 		save(fullfile(out_dir,'extracted_data.mat'),'mic_data','sync_data','ttl_data',...
 			'rise_data','fall_data','used_filenames','-v7.3');
@@ -549,13 +549,18 @@ fprintf('\n');
 
 end
 
-function extract_movies(RISE_DATA,FALL_DATA,USED_FILENAMES,OUT_DIR,IM_RESIZE,MOVIE_FS,MIC_DATA,FS)
+function extract_movies(RISE_DATA,FALL_DATA,USED_FILENAMES,OUT_DIR,IM_RESIZE,MOVIE_FS,MIC_DATA,FS,MIN_F,MAX_F)
 
 if exist(fullfile(OUT_DIR,'mov'),'dir')
 	rmdir(fullfile(OUT_DIR,'mov'),'s'); 
 end
 
+if exist(fullfile(OUT_DIR,'gif'),'dir')
+	rmdir(fullfile(OUT_DIR,'gif'),'s');
+end
+
 mkdir(fullfile(OUT_DIR,'mov'));
+mkdir(fullfile(OUT_DIR,'gif'));
 
 [uniq_filenames,~,uniq_idx]=unique(USED_FILENAMES);
 
@@ -611,6 +616,8 @@ for i=1:length(USED_FILENAMES)
 	file_matches=find(uniq_idx==uniq_idx(i));
 	chunk=find(file_matches==i);
 
+	save_filename=[ file '_' sprintf('%04.0f',chunk) ];
+
 	% frame_idx is used to determine the closest point in time for the onset
 	% of a given frame
 	%
@@ -621,8 +628,19 @@ for i=1:length(USED_FILENAMES)
 
 	% save an initial baseline estimate?
 
-	save(fullfile(OUT_DIR,'mov',[ file '_' sprintf('%04.0f',chunk) '.mat' ]),...
+	save(fullfile(OUT_DIR,'mov',[ save_filename '.mat' ]),...
 		'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs');
+
+	% save sonogram of extraction
+
+	[s,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);
+
+	startidx=max(find(f<MIN_F));
+
+	if isempty(startidx), startidx=1; end
+	stopidx=min(find(f>MAX_F));
+
+	imwrite(flipdim(s(startidx:stopidx,:),1),hot,fullfile(OUT_DIR,'gif',[ save_filename '.gif']),'gif');
 
 end
 

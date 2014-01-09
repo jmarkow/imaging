@@ -5,23 +5,26 @@ function mov_ave=fb_mov_proc(DIR,varargin)
 %
 
 nparams=length(varargin);
-fs=24.414e3;
+fs=24.414e3; % frame rate for TDT data
 ave_playback_fs=60; % frame rate of average movie
-playback_fs=20;
+playback_fs=20; % frame fs for single trial movies
 debug=0; % show debug image?
 baseline=3; % 0 for mean, 1 for median, 2 for trimmed mean
-filt_rad=15; % disk filter radius
-filt_alpha=5;
-lims=1;
-trim_per=20;
-save_dir='proc';
-high_pass=0;
-activity_map='gray';
-cb_height=.03;
+filt_rad=15; % Gauss filter size
+filt_alpha=5; % Gauss filter variance
+lims=1; % prctile limits for contrast enhancement (trims <lims and >lims prctile)
+trim_per=20; % prctile for trimmed mean (trim_per/2 from each end is trimmed)
+save_dir='proc'; % save directory
+activity_map='gray'; % colormap for activity
+cb_height=.03; % colorbar height (in normalized units)
 motion_correction=1; % 0 for no correction, 1 for correction
 motion_crop=20; % allowable crop for motion correction (deleted for later movies)
-per=8;
-outlier_detect=1;
+per=8; % percentile to use for baseline compution (robust minimum)
+outlier_detect=1; % 0 for no outlier detection, 1 for detection
+outlier_mads=6; % number of median absolute deviations from the median a pixel must be
+		% to be designated an outlier
+outlier_frac=.1; % fraction of pixels that must be outliers in a single frame to reject a
+		 % movie
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -45,8 +48,6 @@ for i=1:2:nparams
 			trim_per=varargin{i+1};
 		case 'ave_playback_fs'
 			ave_playback_fs=varargin{i+1};
-		case 'high_pass'
-			high_pass=varargin{i+1};
 		case 'save_dir'
 			save_dir=varargin{i+1};
 		case 'filt_alpha'
@@ -55,6 +56,10 @@ for i=1:2:nparams
 			motion_correction=varargin{i+1};
 		case 'outlier_detect'
 			outlier_detect=varargin{i+1};
+		case 'outlier_mads'
+			outlier_mads=varargin{i+1};
+		case 'outlier_frac'
+			outlier_frac=varargin{i+1};
 	end
 end
 
@@ -157,8 +162,8 @@ for i=1:length(mov_listing)
 
 		% do any frames exceed the limit
 
-		mask1=mov_med-mov_mad*6;
-		mask2=mov_med+mov_mad*6;
+		mask1=mov_med-mov_mad*outlier_mads;
+		mask2=mov_med+mov_mad*outlier_mads;
 
 		len=rows*columns;
 
@@ -167,8 +172,8 @@ for i=1:length(mov_listing)
 			flag1=mov_filt(:,:,j)<mask1;
 			flag2=mov_filt(:,:,j)>mask2;
 
-			flag1=sum(flag1(:)==1)>len*.1;
-			flag2=sum(flag2(:)==1)>len*.1;	
+			flag1=sum(flag1(:)==1)>len*outlier_frac;
+			flag2=sum(flag2(:)==1)>len*outlier_frac;	
 
 			if flag1 || flag2
 				warning('Outlier frame %g detected',j);
@@ -293,22 +298,6 @@ for i=1:length(mov_listing)
 
 	end
 
-	[b,a]=ellip(4,.2,40,[1]/(20/2),'high');
-
-	% warning: high_pass will throw off df/f, would advise not to use for now
-
-	if high_pass==1
-		for j=1:rows
-			for k=1:columns
-				mov_filt(j,k,:)=filtfilt(b,a,squeeze(mov_filt(j,k,:)));
-			end
-		end
-
-	end
-
-
-
-
 	writer_obj=VideoWriter(fullfile(DIR,save_dir,[file '_dff.avi']));
 	writer_obj.FrameRate=playback_fs;
 
@@ -335,18 +324,11 @@ for i=1:length(mov_listing)
 	imagesc(t,f,template_image);axis xy;hold on;
 	colormap(hot);freezeColors();
 
-	if high_pass
-		for j=1:frames
-			mov_norm(:,:,j)=(mov_norm(:,:,j)./norm_fact)*100;
-		end
-	else
+	% normalize each pixel by its mean over time (median is probably better given
+	% the few frames we're working with)
 
-		% normalize each pixel by its mean over time (median is probably better given
-		% the few frames we're working with)
-
-		for j=1:frames
-			mov_norm(:,:,j)=((mov_norm(:,:,j)-norm_fact)./norm_fact).*100; % df/f (in percent)
-		end
+	for j=1:frames
+		mov_norm(:,:,j)=((mov_norm(:,:,j)-norm_fact)./norm_fact).*100; % df/f (in percent)
 	end
 
 	norm_lim(1)=prctile(mov_norm(:),lims);
