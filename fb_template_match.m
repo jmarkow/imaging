@@ -261,26 +261,7 @@ if extract_sounds
 		
 		[mic_data sync_data ttl_data rise_data fall_data used_filenames]=...
 			extract_hits(sorted_syllable,filenames,act_templatesize,round(fs*padding));
-
-		[samples,trials]=size(mic_data);
-
-		% write out sonograms for the hits
-
-		for i=1:trials
-
-			[s,f,t]=fb_pretty_sonogram(double(mic_data(:,i)),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);
-
-			[path,file,ext]=fileparts(used_filenames{i});
-
-			startidx=max(find(f<min_f));
-
-			if isempty(startidx), startidx=1; end
-			stopidx=min(find(f>max_f));
-
-			imwrite(flipdim(s(startidx:stopidx,:),1),hot,fullfile(out_dir,'gif',[file '.gif']),'gif');
-
-		end
-
+	
 		% each rising edge indicates a new frame, map onto time from onset
 
 		extract_movies(rise_data,fall_data,used_filenames,out_dir,im_resize,movie_fs,...
