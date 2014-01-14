@@ -143,7 +143,7 @@ for i=1:length(mov_listing)
 	xlim([timevec(1) timevec(end)]);
 	xlabel('Time (in s)');
 
-	multi_fig_save(save_fig,save_dir,save_file,'eps,png,fig','res',100);
+	fb_multi_fig_save(save_fig,save_dir,save_file,'eps,png,fig','res',100);
 	close([save_fig]);
 	save(fullfile(save_dir,[save_file '.mat']),'roi_t','frame_idx');
 
@@ -236,7 +236,7 @@ box off;
 linkaxes(ax,'x');
 xlabel('Time (in s)');
 xlim([timevec(1) timevec(end)]);
-multi_fig_save(save_fig,save_dir,'ave_roi','eps,png,fig','res',100);
+fb_multi_fig_save(save_fig,save_dir,'ave_roi','eps,png,fig','res',100);
 save(fullfile(save_dir,['ave_roi.mat']),'ave_time','roi_ave','roi_mu','roi_sem');
 
 close([save_fig]);
