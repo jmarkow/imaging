@@ -11,11 +11,12 @@ function [EXTRACTED_ROI,STATS]=fb_auto_roi(DIR,varargin)
 nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
 filt_rad=30; % disk filter radius
-filt_alpha=10;
+filt_alpha=15;
 lims=1;
 save_dir='proc';
 roi_map=colormap('lines');
 save_dir='roi';
+per=8;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -59,7 +60,7 @@ mkdir(save_dir);
 h=fspecial('gaussian',filt_rad,filt_alpha);
 
 mov_data=imfilter(mov_data,h);
-baseline=repmat(prctile(mov_data,8,3),[1 1 frames]);
+baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 
 dff=((mov_data-baseline)./baseline).*100;
 max_proj=max(dff,[],3);

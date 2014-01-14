@@ -155,7 +155,7 @@ if isempty(template_data)
 	xlabel('Time (in s)');
 	ylabel('Fs');
 	colormap(colors);
-	multi_fig_save(template_fig,fullfile(out_dir),'template','eps,png');
+	fb_multi_fig_save(template_fig,fullfile(out_dir),'template','eps,png');
 
 	close([template_fig]);
 else

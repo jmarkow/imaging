@@ -13,7 +13,7 @@ ave_fs=80;
 save_dir='roi';
 template=[];
 fs=24.414e3;
-per=8;
+per=2;
 
 nparams=length(varargin);
 
