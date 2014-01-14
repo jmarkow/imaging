@@ -38,7 +38,7 @@ fb_template_match([],'padding',[.15 .15])
 If you haven't performed an extraction before, this will call a GUI to first select a file to get the template from (check the gif directory to find a good example).  Then draw a box around the template, double click, and confirm in command window (type d for done).  You'll see a lot of status updates.  Then, you will need to perform a manual cluster cut of the matches.  Draw a polygon around your cluster, type enter to confirm, then be sure to save the appropriate cluster (by default this is cluster 2).  Next, to generate pretty movies,
 
 ```
-cd extraction/
+cd extraction/mov/
 fb_mov_proc();
 ```
 
