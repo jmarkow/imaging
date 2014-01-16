@@ -621,7 +621,7 @@ for i=1:length(USED_FILENAMES)
 	if isempty(startidx), startidx=1; end
 	stopidx=min(find(f>MAX_F));
 
-	imwrite(flipdim(s(startidx:stopidx,:),1),hot,fullfile(OUT_DIR,'gif',[ save_filename '.gif']),'gif');
+	imwrite(flipdim(uint8(s(startidx:stopidx,:)),1),hot,fullfile(OUT_DIR,'gif',[ save_filename '.gif']),'gif');
 
 end
 

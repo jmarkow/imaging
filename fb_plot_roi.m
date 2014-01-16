@@ -43,7 +43,6 @@ for i=1:2:nparams
 end
 
 
-
 mkdir(save_dir);
 
 % ROIS is a cell array of image indices returned by fb_select_roi
@@ -122,9 +121,6 @@ for i=1:length(mov_listing)
 	set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
 
 	for j=1:nplots-1
-
-		size(timevec)
-		size(roi_t(j,:))
 
 		ax(j+1)=subaxis(nplots,1,1,j+1,1,1,'spacingvert',.012,'marginbottom',.15);
 		set(gca,'TickDir','out','linewidth',1,'FontSize',12);

@@ -53,6 +53,10 @@ nparams=length(varargin);
 
 high=200;
 low=200;
+alt_thresh=1;
+alt_pad=2;
+alt_method=0;
+
 gap_thresh=10; % how long of a gap in the sync signal for file splitting?
 fs=24.414e3;
 mat_dir='mat';
@@ -76,8 +80,17 @@ for i=1:2:nparams
 			mat_dir=varargin{i+1};
 		case 'gif_dir'
 			gif_dir=varargin{i+1};
+		case 'alt_thresh'
+			alt_thresh=varargin{i+1};
+		case 'alt_method'
+			alt_method=varargin{i+1};
+		case 'alt_pad'
+			alt_pad=varargin{i+1};
 	end
 end
+
+if exist(mat_dir,'dir') rmdir(mat_dir,'s'); end
+if exist(gif_dir,'dir') rmdir(gif_dir,'s'); end
 
 mkdir(mat_dir);
 mkdir(gif_dir);
@@ -92,27 +105,51 @@ idx=1:length(SYNC_SIGNAL)-1;
 rising_edges=find(SYNC_SIGNAL(idx)<low&SYNC_SIGNAL(idx+1)>high);
 rising_edges=rising_edges(:);
 
+
 falling_edges=find(SYNC_SIGNAL(idx)>high&SYNC_SIGNAL(idx+1)<low);
 falling_edges=unique([1;falling_edges(:);length(SYNC_SIGNAL)]);
 
-size(rising_edges)
-size(falling_edges)
-
 falling_edges=falling_edges(1:length(rising_edges)+1);
 
-% first rising edge is the first data split
 
-disp('Detecting gaps in sync signal...');
+if alt_method
 
-gap_lengths=rising_edges-falling_edges(1:end-1);
+	gap_per=zeros(length(rising_edges),1);
+	
+	disp('Using alternative method for file detection...');
 
-file_onsets=find(gap_lengths>gap_thresh);
+	for i=1:length(rising_edges)
 
-file_offsets=falling_edges(file_onsets);
-file_onsets=rising_edges(file_onsets); % where are the file onsets?
+		% take the rms of the gap
 
-file_offsets=[file_offsets;length(SYNC_SIGNAL)];
+		gap=falling_edges(i)+alt_pad:rising_edges(i)-alt_pad;
+		seg=SYNC_SIGNAL(gap);
+		gap_per(i)=sqrt(mean(seg.^2));
 
+	end
+
+	gap_lengths=rising_edges-falling_edges(1:end-1);	
+	
+	idxs=find(gap_per<alt_thresh);
+
+	%file_onsets=rising_edges(find(gap_per>alt_thresh));
+
+else
+
+	disp('Detecting gaps in sync signal for file detection...');
+
+	gap_lengths=rising_edges-falling_edges(1:end-1);
+	
+	idxs=find(gap_lengths>gap_thresh);
+
+
+end
+
+
+file_offsets=falling_edges(idxs);
+file_onsets=rising_edges(idxs); % where are the file onsets?
+
+file_offsets=unique([file_offsets;length(SYNC_SIGNAL)]);
 tif_list=dir(fullfile(pwd,'*.tif')); % list of files
 
 % if number of tif>file_onsets then movie software was left on, if vice versa
@@ -166,10 +203,12 @@ idx(to_del)=[];
 filenames={tif_list(:).name};
 filenames=filenames(idx);
 
-disp('Checking data integrity...');
+disp('Checking data integrity and extracting files...');
 
 [nblanks formatstring]=fb_progressbar(100);
 fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+error_count=0;
 
 for i=1:length(filenames)
 
@@ -213,9 +252,16 @@ for i=1:length(filenames)
 
 
 	if frame_num~=length(rising)
-	
+
+		fprintf(1,'\n\n');
+
 		warning('Frame number (%g) not equal to number of rising edges (%g) in file %s',...
 			frame_num,length(rising),filenames{i});
+
+		fprintf(1,'\n\n');
+		fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+		error_count=error_count+1;
 
 		% save data to junk directory or skip if the frame number does not match
 
@@ -232,7 +278,7 @@ for i=1:length(filenames)
 		minpt=1;
 		maxpt=min(find(f>=10e3));
 
-		imwrite(flipdim(s(minpt:maxpt,:),1),hot,fullfile(gif_dir,[file '.gif']),'gif');
+		imwrite(flipdim(uint8(s(minpt:maxpt,:)),1),hot,fullfile(gif_dir,[file '.gif']),'gif');
 		save(fullfile(mat_dir,[file '.mat']),'sync_data','mic_data','ttl_data','rising_data','falling_data','fs');
 
 	end
@@ -241,5 +287,6 @@ end
 
 fprintf('\n');
 
+fprintf('Extracted from %g files with %g errors\n', length(filenames), error_count);
 
 

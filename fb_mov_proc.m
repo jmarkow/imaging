@@ -204,9 +204,6 @@ for i=1:length(mov_listing)
 
 		disp('Performing motion correction...');
 
-		%[nblanks formatstring]=fb_progressbar(100);
-		%fprintf(1,['Progress:  ' blanks(nblanks)]);
-
 		% have user select file for motion correction template
 		
 		if ~motion_flag
@@ -273,10 +270,12 @@ for i=1:length(mov_listing)
 
 		end
 
+		[nblanks formatstring]=fb_progressbar(100);
+		fprintf(1,['Progress:  ' blanks(nblanks)]);
 
 		for j=1:frames
 
-			%fprintf(1,formatstring,round((j/frames)*100));	
+			fprintf(1,formatstring,round((j/frames)*100));	
 			tmp=mov_filt(y_segment,x_segment,j);
 		
 			clim(1)=prctile(tmp(:),30);
@@ -291,7 +290,7 @@ for i=1:length(mov_listing)
 			tmp=tmp./std(tmp(:));
 
 			[output Greg]=dftregistration(correction_fft,fft2(tmp),100);	
-			output
+			%output
 
 			shift=round(output(3:4));
 			shift(shift>motion_crop)=motion_crop;
@@ -306,7 +305,7 @@ for i=1:length(mov_listing)
 		% save the motion corrected data
 
 		save(fullfile(save_dir,[file '_motioncorrected.mat']),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','motion_crop');
-
+		fprintf(1,'\n');
 
 	end
 

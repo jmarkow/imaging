@@ -3,6 +3,10 @@ function [EXTRACTED_ROI,STATS]=fb_auto_roi(DIR,varargin)
 %
 %
 %
+% LOGIC:
+% 1) spatially smooth each from with a small Gaussian filter (2 micron seems standard)
+% 2) compute df/f
+%
 %
 
 
@@ -10,13 +14,18 @@ function [EXTRACTED_ROI,STATS]=fb_auto_roi(DIR,varargin)
 
 nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
-filt_rad=30; % disk filter radius
-filt_alpha=15;
-lims=1;
-save_dir='proc';
+filt_rad=40; % gauss filter radius
+filt_alpha=20; % gauss filter alpha
+lims=2; % contrast prctile limits
 roi_map=colormap('lines');
 save_dir='roi';
-per=8;
+per=0; % baseline percentile (0 for min)
+ave_scale=100; % for adaptive threshold, scale for averaging filter
+
+% parameters used for morphological opening
+
+erode_scale=7; % scale (in pxs) for erosion
+dilate_scale=7; % scale (in pxs) for dilation
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -36,6 +45,16 @@ for i=1:2:nparams
 			save_dir=varargin{i+1};
 		case 'w'
 			w=varargin{i+1};
+		case 'erode_scale'
+			erode_scale=varargin{i+1};
+		case 'dilate_scale'
+			dilate_scale=varargin{i+1};
+		case 'ave_scale'
+			ave_scale=varargin{i+1};
+		case 'per'
+			per=varargin{i+1};
+		case 'lims'
+			lims=varargin{i+1};
 	end
 end
 
@@ -45,31 +64,50 @@ if nargin<1 | isempty(DIR), DIR=pwd; end
 [filename,pathname]=uigetfile({'*.mat'},'Pick a mat file to extract the image data from',fullfile(DIR,'..'));
 load(fullfile(pathname,filename),'mov_data');
 
+%if exist(save_dir,'dir') rmdir(save_dir,'s'); end
+
 mkdir(save_dir);
 
-% maximum projection
-% convert mov_data to df/f
-
-%mov_data=imresize(mov_data,.25);
-%ccimage=xcorr_image(mov_data); %WAY TOO SLOW IF IMAGE IS NOT SUBSAMPLED
-
-% convert to df/f then take maximum projection
+disp('Filtering images, this may take a minute...');
 
 [rows,columns,frames]=size(mov_data);
-
 h=fspecial('gaussian',filt_rad,filt_alpha);
 
 mov_data=imfilter(mov_data,h);
-baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 
+baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 dff=((mov_data-baseline)./baseline).*100;
+
+h=fspecial('average',ave_scale);
+dff_mu=imfilter(dff,h);
+
+dff=dff-dff_mu;
 max_proj=max(dff,[],3);
 max_proj=max(max_proj./max(max_proj(:)),0); % convert to [0,1]
 max_proj=medfilt2(max_proj,[20 20]); 
+max_proj=max_proj(ave_scale:end-ave_scale,ave_scale:end-ave_scale);
+
+% pad
+
+pad_y=zeros(ave_scale,size(max_proj,2));
+
+max_proj=[ pad_y;max_proj;pad_y ];
+
+pad_x=zeros(size(max_proj,1),ave_scale);
+
+max_proj=[ pad_x max_proj pad_x ];
 
 raw_proj=max(mov_data,[],3);
 clims(1)=prctile(raw_proj(:),lims);
 clims(2)=prctile(raw_proj(:),100-lims);
+
+% scale the raw projection from [0,1]
+
+raw_proj=min(raw_proj,clims(2)); % clip to max
+raw_proj=max(raw_proj-clims(1),0); % clip min
+raw_proj=raw_proj./(clims(2)-clims(1)); % normalize to [0,1]
+
+%raw_proj=min(raw_proj,1);
 
 EXTRACTED_ROI={};
 
@@ -78,15 +116,30 @@ EXTRACTED_ROI={};
 slmin=min(max_proj(:));
 slmax=max(max_proj(:));
 
+cm1=colormap('gray');
+
+% convert the indexed images to rgb
+
+im1_rgb=ind2rgb(round(raw_proj.*size(cm1,1)),cm1);
+im2_rgb=ind2rgb(max_proj>0,[0 0 0;1 0 0]);
+
+% display the anatomical "max projection"
+
 slider_fig=figure();
-imagesc(max_proj>0);
+image(im1_rgb);
+
+% now add the mask, change the transparency using the slider
+
+hold on;
+h=image(im2_rgb);
+set(h,'AlphaData',(max_proj>0));
 
 hsl = uicontrol(slider_fig,'Style','slider','Min',slmin,'Max',slmax,...
           'SliderStep',[1e-3 1e-3],'Value',slmin,...
              'Position',[20 10 200 20]);
-set(hsl,'Callback',{@slider_callback,slider_fig,max_proj})
+set(hsl,'Callback',{@slider_callback,slider_fig,max_proj,h})
 
-disp('Press any key to use current threshold');
+disp('Press any key in the command window to use current threshold');
 pause();
 threshold=get(hsl,'value');
 close(slider_fig);
@@ -98,19 +151,24 @@ new_image=im2bw(max_proj,threshold);
 
 % basic morphological operators before conncomp 
 
-new_image=bwmorph(new_image,'fill');
 new_image=bwmorph(new_image,'clean');
-new_image=bwmorph(new_image,'dilate');
+
+se=strel('disk',erode_scale);
+new_image=imerode(new_image,se);
+
+se=strel('disk',dilate_scale);
+new_image=imdilate(new_image,se);
 
 % collect some basic stats if we want to exclude later
 
 conn_comp=bwconncomp(new_image);
+
 STATS=regionprops(conn_comp,'eccentricity','majoraxislength','minoraxislength','convexhull');
 
 % get coordinates and draw ROIs on maximum projection
 
 save_fig=figure('Visible','off');
-imshow(raw_proj);caxis(clims);
+imshow(raw_proj);
 colormap(gray);
 hold on;
 
@@ -127,11 +185,14 @@ save(fullfile(save_dir,'roi_data.mat'),'EXTRACTED_ROI','STATS');
 
 end
 
-function slider_callback(hObject,eventdata,fig,max_proj)
+function slider_callback(hObject,eventdata,fig,max_proj,h)
+
+alpha=.4;
 
 val=get(hObject,'Value');
 set(0,'CurrentFigure',fig)
-imagesc(max_proj>val)
+set(h,'AlphaData',(max_proj>val).*alpha);
+
 title(val);
 setappdata(fig,'threshold',val);
 
