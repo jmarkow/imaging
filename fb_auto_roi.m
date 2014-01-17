@@ -163,7 +163,8 @@ new_image=imdilate(new_image,se);
 
 conn_comp=bwconncomp(new_image);
 
-STATS=regionprops(conn_comp,'eccentricity','majoraxislength','minoraxislength','convexhull');
+STATS=regionprops(conn_comp,'eccentricity','majoraxislength',...
+	'minoraxislength','convexhull','centroid','boundingbox');
 
 % get coordinates and draw ROIs on maximum projection
 
@@ -177,6 +178,12 @@ for i=1:length(conn_comp.PixelIdxList);
 	EXTRACTED_ROI{i}=[xi(:) yi(:)]; % get the coordinates
 	tmp=STATS(i).ConvexHull;
 	plot(tmp(:,1),tmp(:,2),'-','linewidth',2,'color',roi_map(i,:));
+	tmp=STATS(i).BoundingBox;
+
+	x=tmp(1)+tmp(3)/2;
+	y=tmp(2)+tmp(4)/2;
+
+	text(x,y,[num2str(i)],'FontSize',12,'FontName','Helvetica','color','r','FontWeight','bold');
 end
 
 fb_multi_fig_save(save_fig,save_dir,'roi_map','tiff','res','100');

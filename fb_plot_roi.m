@@ -14,6 +14,7 @@ save_dir='roi';
 template=[];
 fs=24.414e3;
 per=2;
+max_row=5;
 
 nparams=length(varargin);
 
@@ -39,6 +40,8 @@ for i=1:2:nparams
 			fs=varargin{i+1};
 		case 'per'
 			per=vargin{i+1};
+		case 'max_row'
+			max_row=varargin{i+1};
 	end
 end
 
@@ -85,10 +88,6 @@ for i=1:length(mov_listing)
 
 	mov_norm=mov_data;
 
-	%for j=1:frames
-	%	mov_norm(:,:,j)=((mov_norm(:,:,j)-norm_fact)./norm_fact).*100; % df/f (in percent)
-	%end
-
 	% roi_traces
 
 	[rows,columns,frames]=size(mov_data);
@@ -101,43 +100,68 @@ for i=1:length(mov_listing)
 		end
 	end
 
+
+	% break into a grid of columns and rows to plot >5 rois
+
 	% plot each roi in a subplot, perhaps use subaxis to keep things close together
-
-	nplots=roi_n+1;
-	timevec=frame_idx./fs;
-
-	ax=[];
-	save_fig=figure('visible','off');
-	set(save_fig,'position',[100 100 500 200*nplots],'PaperPositionMode','auto')
-	clf;
 	
-	ax(1)=subaxis(nplots,1,1,1,1,1,'spacingvert',.012,'marginbottom',.15);
+	timevec=frame_idx./fs;
+	nplots=roi_n+1;
 
-	imagesc(t,f./1e3,song_image);axis xy;box off;
-	colormap(sono_colormap);
-	ylabel('Fs (kHz)');
+	ncolumns=ceil(roi_n/max_row);
+	lastcol=mod(roi_n,max_row);
 
-	set(gca,'TickDir','out','linewidth',1,'FontSize',12);
-	set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
-
-	for j=1:nplots-1
-
-		ax(j+1)=subaxis(nplots,1,1,j+1,1,1,'spacingvert',.012,'marginbottom',.15);
-		set(gca,'TickDir','out','linewidth',1,'FontSize',12);
-		plot(timevec,roi_t(j,:),'color',colors(j,:));
-		box off;
-
-		if j<nplots-1
-			set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
-		end
-		
-		axis tight;
-
+	if roi_n<max_row
+		nrows=roi_n;
+	else
+		nrows=max_row;
 	end
 
-	linkaxes(ax,'x');box off;
-	xlim([timevec(1) timevec(end)]);
-	xlabel('Time (in s)');
+	ax=[];
+	
+	save_fig=figure('visible','off');
+	set(save_fig,'position',[100 100 300*ncolumns 100*nrows],'PaperPositionMode','auto')
+	clf;
+
+	counter=1;
+	for j=1:ncolumns
+	
+		ax(end+1)=subaxis(nrows,ncolumns,j,1,1,1,'spacingvert',.012,'marginbottom',.2);
+
+		imagesc(t,f./1e3,song_image);axis xy;box off;
+		colormap(sono_colormap);
+		ylabel('Fs (kHz)');
+
+		set(gca,'TickDir','out','linewidth',1,'FontSize',12);
+		set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
+
+		if j<ncolumns
+			curr_rows=nrows;
+		else
+			curr_rows=lastcol;
+		end
+
+		for k=1:curr_rows
+
+			ax(end+1)=subaxis(nrows,ncolumns,j,k+1,1,1,'spacingvert',.012,'marginbottom',.2);
+			set(gca,'TickDir','out','linewidth',1,'FontSize',12);
+			plot(timevec,roi_t(counter,:),'color',colors(counter,:));
+			box off;
+
+			if k<curr_rows
+				set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
+			end
+
+			axis tight;
+			ylabel(['ROI ' num2str(counter)],'FontSize',10,'FontName','Helvetica');
+			counter=counter+1;
+		end
+
+		linkaxes(ax,'x');box off;
+		xlim([timevec(1) timevec(end)]);
+		xlabel('Time (in s)','FontSize',12,'FontName','Helvetica');
+
+	end
 
 	fb_multi_fig_save(save_fig,save_dir,save_file,'eps,png,fig','res',100);
 	close([save_fig]);
@@ -189,49 +213,67 @@ if ~isempty(template)
 	[song_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
 end
 
+ncolumns=ceil(roi_n/max_row);
+lastcol=mod(roi_n,max_row);
 
-save_fig=figure('visible','off');
-set(save_fig,'position',[100 100 500 200*nplots],'PaperPositionMode','auto','visible','off')
-clf;
+if roi_n<max_row
+	nrows=roi_n;
+else
+	nrows=max_row;
+end
 
 ax=[];
-ax(1)=subaxis(nplots,1,1,1,1,1,'spacingvert',.012,'marginbottom',.15);
 
-imagesc(t,f./1e3,song_image);axis xy;box off;
-colormap(sono_colormap);
+save_fig=figure('visible','off');
+set(save_fig,'position',[100 100 300*ncolumns 100*nrows],'PaperPositionMode','auto')
+clf;
 
-ylabel('Fs (Hz)');
+counter=1;
+for j=1:ncolumns
 
-set(gca,'TickDir','out','linewidth',1,'FontSize',12);
-set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
+	ax(end+1)=subaxis(nrows,ncolumns,j,1,1,1,'spacingvert',.012,'marginbottom',.2);
 
-for i=1:nplots-1
+	imagesc(t,f./1e3,song_image);axis xy;box off;
+	colormap(sono_colormap);
+	ylabel('Fs (kHz)');
 
-	ax(i+1)=subaxis(nplots,1,1,i+1,1,1,'spacingvert',.012,'marginbottom',.15);
 	set(gca,'TickDir','out','linewidth',1,'FontSize',12);
+	set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
 
-	% plot confidence bars
-	%
+	if j<ncolumns
+		curr_rows=nrows;
+	else
+		curr_rows=lastcol;
+	end
 
-	plot(timevec,roi_mu(i,:),'color',colors(i,:));
-	hold on;
-	plot(timevec,roi_mu(i,:)+roi_sem(i,:),'k--','color',colors(i,:));
-	plot(timevec,roi_mu(i,:)-roi_sem(i,:),'k--','color',colors(i,:));
+	for k=1:curr_rows
 
-	box off;
+		ax(end+1)=subaxis(nrows,ncolumns,j,k+1,1,1,'spacingvert',.012,'marginbottom',.2);
+		set(gca,'TickDir','out','linewidth',1,'FontSize',12);
+		plot(ave_time,roi_mu(counter,:),'color',colors(counter,:));hold on;
+		plot(ave_time,roi_mu(counter,:)+roi_sem(counter,:),'k--','color',colors(counter,:));
+		plot(ave_time,roi_mu(counter,:)-roi_sem(counter,:),'k--','color',colors(counter,:));
 
-	if i<nplots-1
-		set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
-	end	
+		box off;
 
-	axis tight;
+		if k<curr_rows
+			set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
+		end
+
+		axis tight;
+		ylabel(['ROI ' num2str(counter)],'FontSize',10,'FontName','Helvetica');
+		counter=counter+1;
+	end
+
+	linkaxes(ax,'x');box off;
+	xlim([timevec(1) timevec(end)]);
+	xlabel('Time (in s)','FontSize',12,'FontName','Helvetica');
 
 end
 
-box off;
 linkaxes(ax,'x');
-xlabel('Time (in s)');
 xlim([timevec(1) timevec(end)]);
+
 fb_multi_fig_save(save_fig,save_dir,'ave_roi','eps,png,fig','res',100);
 save(fullfile(save_dir,['ave_roi.mat']),'ave_time','roi_ave','roi_mu','roi_sem');
 
