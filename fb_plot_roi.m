@@ -120,6 +120,10 @@ for i=1:length(mov_listing)
 	ncolumns=ceil(roi_n/max_row);
 	lastcol=mod(roi_n,max_row);
 
+	if lastcol==0
+		lastcol=max_row;
+	end
+
 	if roi_n<max_row
 		nrows=roi_n;
 	else
