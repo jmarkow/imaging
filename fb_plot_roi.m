@@ -15,6 +15,11 @@ template=[];
 fs=24.414e3;
 per=2;
 max_row=5;
+filt_rad=30;
+filt_alpha=10;
+min_f=0;
+max_f=9e3;
+lims=1;
 
 nparams=length(varargin);
 
@@ -42,6 +47,10 @@ for i=1:2:nparams
 			per=vargin{i+1};
 		case 'max_row'
 			max_row=varargin{i+1};
+		case 'filt_alpha'
+			filt_alpha=varargin{i+1};
+		case 'filt_rad'
+			filt_rad=varargin{i+1};
 	end
 end
 
@@ -124,12 +133,16 @@ for i=1:length(mov_listing)
 	clf;
 
 	counter=1;
+	col=1;
+
 	for j=1:ncolumns
 	
+		%ax(end+1)=subplot(nrows,ncolumns,j);
 		ax(end+1)=subaxis(nrows,ncolumns,j,1,1,1,'spacingvert',.012,'marginbottom',.2);
-
+	
 		imagesc(t,f./1e3,song_image);axis xy;box off;
 		colormap(sono_colormap);
+		ylim([min_f/1e3 max_f/1e3]);
 		ylabel('Fs (kHz)');
 
 		set(gca,'TickDir','out','linewidth',1,'FontSize',12);
@@ -143,6 +156,8 @@ for i=1:length(mov_listing)
 
 		for k=1:curr_rows
 
+			%ax(end+1)=subplot(nrows,ncolumns,((k).*ncolumns)+j);
+			
 			ax(end+1)=subaxis(nrows,ncolumns,j,k+1,1,1,'spacingvert',.012,'marginbottom',.2);
 			set(gca,'TickDir','out','linewidth',1,'FontSize',12);
 			plot(timevec,roi_t(counter,:),'color',colors(counter,:));
@@ -155,11 +170,13 @@ for i=1:length(mov_listing)
 			axis tight;
 			ylabel(['ROI ' num2str(counter)],'FontSize',10,'FontName','Helvetica');
 			counter=counter+1;
+
 		end
 
 		linkaxes(ax,'x');box off;
 		xlim([timevec(1) timevec(end)]);
 		xlabel('Time (in s)','FontSize',12,'FontName','Helvetica');
+
 
 	end
 
@@ -216,6 +233,10 @@ end
 ncolumns=ceil(roi_n/max_row);
 lastcol=mod(roi_n,max_row);
 
+if lastcol==0
+	lastcol=max_row;
+end
+
 if roi_n<max_row
 	nrows=roi_n;
 else
@@ -234,6 +255,7 @@ for j=1:ncolumns
 	ax(end+1)=subaxis(nrows,ncolumns,j,1,1,1,'spacingvert',.012,'marginbottom',.2);
 
 	imagesc(t,f./1e3,song_image);axis xy;box off;
+	ylim([min_f/1e3 max_f/1e3]);
 	colormap(sono_colormap);
 	ylabel('Fs (kHz)');
 
@@ -275,7 +297,25 @@ linkaxes(ax,'x');
 xlim([timevec(1) timevec(end)]);
 
 fb_multi_fig_save(save_fig,save_dir,'ave_roi','eps,png,fig','res',100);
-save(fullfile(save_dir,['ave_roi.mat']),'ave_time','roi_ave','roi_mu','roi_sem');
 
+%%%%%%%%%%%%% CELL MASK MATCHED TO ROI
+% plot cell masks color-matched to their ROIs 
+
+% first five rows are reserved for the max proj
+
+disp('Creating maximum projection image...');
+
+load(fullfile(pwd,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs');
+
+h=fspecial('gaussian',filt_rad,filt_alpha);
+mov_data=imfilter(mov_data,h);
+max_proj=max(mov_data,[],3);
+
+clims(1)=prctile(max_proj(:),lims);
+clims(2)=prctile(max_proj(:),100-lims);
+
+save_fig=figure('visible','off');
+
+save(fullfile(save_dir,['ave_roi.mat']),'ave_time','roi_ave','roi_mu','roi_sem');
 close([save_fig]);
 

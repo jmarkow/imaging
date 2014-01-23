@@ -194,6 +194,7 @@ end
 % 1-5 in either direction
 
 [val,idx]=sort(trial_num,'ascend');
+val=(val-min(val))+1;
 
 to_del=find(val>length(file_onsets));
 

@@ -14,13 +14,14 @@ function [EXTRACTED_ROI,STATS]=fb_auto_roi(DIR,varargin)
 
 nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
-filt_rad=40; % gauss filter radius
-filt_alpha=20; % gauss filter alpha
+filt_rad=30; % gauss filter radius
+filt_alpha=10; % gauss filter alpha
 lims=2; % contrast prctile limits
 roi_map=colormap('lines');
 save_dir='roi';
 per=0; % baseline percentile (0 for min)
 ave_scale=100; % for adaptive threshold, scale for averaging filter
+med_scale=15;
 
 % parameters used for morphological opening
 
@@ -84,7 +85,7 @@ dff_mu=imfilter(dff,h);
 dff=dff-dff_mu;
 max_proj=max(dff,[],3);
 max_proj=max(max_proj./max(max_proj(:)),0); % convert to [0,1]
-max_proj=medfilt2(max_proj,[20 20]); 
+max_proj=medfilt2(max_proj,[med_scale med_scale]); 
 max_proj=max_proj(ave_scale:end-ave_scale,ave_scale:end-ave_scale);
 
 % pad
