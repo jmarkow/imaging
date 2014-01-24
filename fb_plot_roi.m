@@ -231,7 +231,7 @@ roi_mu=mean(roi_ave.interp,3);
 roi_sem=std(roi_ave.interp,[],3)./sqrt(size(roi_ave.interp,3));
 
 if ~isempty(template)
-	[song_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
+	[song_image,f,t]=fb_pretty_sonogram(double(template),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
 end
 
 ncolumns=ceil(roi_n/max_row);
