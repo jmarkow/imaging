@@ -2,14 +2,33 @@ function fb_plot_allpxs(MOV_DATA,MIC_DATA,FRAME_IDX,varargin)
 %fb_plot_allpxs uses the center of mass (df/f here) (COM) across time to define
 % a color, and the opacity is dictated by the max df/f
 %
+%	fb_plot_allpxs(MOV_DATA,MIC_DATA,FRAME_IDX,varargin)
 %
+%	MOV_DATA
+%
+%	MIC_DATA
+%
+%	FRAME_IDX
+%
+%	the following may be passed as parameter/value pairs:
+%
+%		filt_rad
+%
+%		filt_alpha
+%		
+%		lims
+%
+%
+%
+
+
+
 nparams=length(varargin);
 
 filt_rad=60; % gauss filter radius
 filt_alpha=20; % gauss filter alpha
 lims=5; % contrast prctile limits (i.e. clipping limits lims 1-lims)
 cmap=colormap('jet');
-save_dir='roi';
 per=0; % baseline percentile (0 for min)
 fs=24.414e3;
 bgcolor=[ .75 .75 .75 ]; % rgb values for axis background
