@@ -46,14 +46,6 @@ for i=1:2:nparams
 	end
 end
 
-if zeropad==0
-    zeropad=round(N/2);
-end
-
-if ~isempty(zeropad)
-    SIGNAL=[zeros(zeropad,1);SIGNAL(:);zeros(zeropad,1)];
-end
-
 if length(SIGNAL)<=N
 	disp(['Length of signal longer than N, truncating N to ' num2str(floor(length(SIGNAL)/5))]);
 	difference=N-overlap;
@@ -68,6 +60,13 @@ else
     nfft=2^nextpow2(nfft);
 end
 
+if zeropad==0
+    zeropad=round(N/2);
+end
+
+if ~isempty(zeropad)
+    SIGNAL=[zeros(zeropad,1);SIGNAL(:);zeros(zeropad,1)];
+end
 
 if any(SIGNAL>1)
     SIGNAL=SIGNAL./max(abs(SIGNAL));
