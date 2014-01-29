@@ -19,14 +19,14 @@ filt_alpha=10; % gauss filter alpha
 lims=2; % contrast prctile limits
 roi_map=colormap('lines');
 save_dir='roi';
-per=0; % baseline percentile (0 for min)
-ave_scale=100; % for adaptive threshold, scale for averaging filter
-med_scale=15;
+per=2; % baseline percentile (0 for min)
+ave_scale=40; % for adaptive threshold, scale for averaging filter
+med_scale=22; % for removing speckle noise from maximum projection
 
 % parameters used for morphological opening
 
-erode_scale=7; % scale (in pxs) for erosion
-dilate_scale=7; % scale (in pxs) for dilation
+erode_scale=3; % scale (in pxs) for erosion
+dilate_scale=3; % scale (in pxs) for dilation
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -74,27 +74,28 @@ disp('Filtering images, this may take a minute...');
 [rows,columns,frames]=size(mov_data);
 h=fspecial('gaussian',filt_rad,filt_alpha);
 
-mov_data=imfilter(mov_data,h);
+mov_data=imfilter(mov_data,h,'circular');
 
 baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 dff=((mov_data-baseline)./baseline).*100;
 
 h=fspecial('average',ave_scale);
-dff_mu=imfilter(dff,h);
+dff_mu=imfilter(dff,h,'circular');
+pad_pxs=floor(ave_scale/4); % don't take anything too close to the edge
 
-dff=dff-dff_mu;
+dff=(dff-dff_mu);
 max_proj=max(dff,[],3);
 max_proj=max(max_proj./max(max_proj(:)),0); % convert to [0,1]
 max_proj=medfilt2(max_proj,[med_scale med_scale]); 
-max_proj=max_proj(ave_scale:end-ave_scale,ave_scale:end-ave_scale);
+max_proj=max_proj(pad_pxs:end-pad_pxs,pad_pxs:end-pad_pxs);
 
 % pad
 
-pad_y=zeros(ave_scale,size(max_proj,2));
+pad_y=zeros(pad_pxs,size(max_proj,2));
 
 max_proj=[ pad_y;max_proj;pad_y ];
 
-pad_x=zeros(size(max_proj,1),ave_scale);
+pad_x=zeros(size(max_proj,1),pad_pxs);
 
 max_proj=[ pad_x max_proj pad_x ];
 
@@ -138,7 +139,7 @@ set(h,'AlphaData',(max_proj>0));
 hsl = uicontrol(slider_fig,'Style','slider','Min',slmin,'Max',slmax,...
           'SliderStep',[1e-3 1e-3],'Value',slmin,...
              'Position',[20 10 200 20]);
-set(hsl,'Callback',{@slider_callback,slider_fig,max_proj,h})
+set(hsl,'Callback',{@slider_callback,slider_fig,max_proj,h,erode_scale,dilate_scale})
 
 disp('Press any key in the command window to use current threshold');
 pause();
@@ -175,6 +176,7 @@ colormap(gray);
 hold on;
 
 for i=1:length(conn_comp.PixelIdxList);
+
 	[xi,yi]=ind2sub(size(max_proj),conn_comp.PixelIdxList{i});
 	EXTRACTED_ROI{i}=[xi(:) yi(:)]; % get the coordinates
 	tmp=STATS(i).ConvexHull;
@@ -193,13 +195,23 @@ save(fullfile(save_dir,'roi_data.mat'),'EXTRACTED_ROI','STATS');
 
 end
 
-function slider_callback(hObject,eventdata,fig,max_proj,h)
+function slider_callback(hObject,eventdata,fig,max_proj,h,erode_scale,dilate_scale)
 
 alpha=.4;
 
 val=get(hObject,'Value');
+
+new_image=max_proj>val;
+new_image=bwmorph(new_image,'clean');
+
+se=strel('disk',erode_scale);
+new_image=imerode(new_image,se);
+
+se=strel('disk',dilate_scale);
+new_image=imdilate(new_image,se);
+
 set(0,'CurrentFigure',fig)
-set(h,'AlphaData',(max_proj>val).*alpha);
+set(h,'AlphaData',new_image.*alpha);
 
 title(val);
 setappdata(fig,'threshold',val);
