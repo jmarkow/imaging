@@ -245,12 +245,25 @@ for i=1:length(filenames)
 	% save the rising edges and falling edges (save as point process, 1 indicates
 	% rising edge or falling edge)
 
+	% fallback in case we're off by one frame, use 1:end-1 rising edges
+
+	if frame_num==length(rising)-1
+
+		warning(['Frame number (%g) is slightly smaller than ' ...
+		       	'the number of rising edges (%g) in file %s, correcting...'],...
+			frame_num,length(rising),filenames{i});
+
+		fprintf(1,'\n\n');
+		fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+		rising=rising(1:end-1);
+	end
+
 	rising_data=zeros(size(sync_data));
 	rising_data(rising)=1:length(rising);
 	
 	falling_data=zeros(size(sync_data));
 	falling_data(falling)=1:length(falling);
-
 
 	if frame_num~=length(rising)
 
