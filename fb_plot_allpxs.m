@@ -25,8 +25,8 @@ function fb_plot_allpxs(MOV_DATA,MIC_DATA,FRAME_IDX,varargin)
 
 nparams=length(varargin);
 
-filt_rad=60; % gauss filter radius
-filt_alpha=20; % gauss filter alpha
+filt_rad=45; % gauss filter radius
+filt_alpha=15; % gauss filter alpha
 lims=5; % contrast prctile limits (i.e. clipping limits lims 1-lims)
 cmap=colormap('jet');
 per=0; % baseline percentile (0 for min)
@@ -72,6 +72,17 @@ end
 frame_idx=FRAME_IDX./fs;
 [b,a]=ellip(5,.2,80,[500]/(fs/2),'high');
 
+[rows,columns,frames]=size(MOV_DATA);
+
+disp('Gaussian filtering the movie data...');
+
+h=fspecial('gaussian',filt_rad,filt_alpha);
+MOV_DATA=imfilter(MOV_DATA,h,'circular');
+
+disp(['Converting to df/f using the ' num2str(per) ' percentile for the baseline...']);
+
+baseline=repmat(prctile(MOV_DATA,per,3),[1 1 frames]);
+
 figure();
 
 if time_select
@@ -108,16 +119,6 @@ if time_select
 
 end
 
-[rows,columns,frames]=size(MOV_DATA);
-
-disp('Gaussian filtering the movie data...');
-
-h=fspecial('gaussian',filt_rad,filt_alpha);
-MOV_DATA=imfilter(MOV_DATA,h,'circular');
-
-disp(['Converting to df/f using the ' num2str(per) ' percentile for the baseline...']);
-
-baseline=repmat(prctile(MOV_DATA,per,3),[1 1 frames]);
 dff=((MOV_DATA-baseline)./baseline).*100;
 
 % take the center of mass across dim 3 (time) for each point in space
