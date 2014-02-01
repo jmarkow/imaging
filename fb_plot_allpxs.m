@@ -72,8 +72,6 @@ end
 frame_idx=FRAME_IDX./fs;
 [b,a]=ellip(5,.2,80,[500]/(fs/2),'high');
 
-[rows,columns,frames]=size(MOV_DATA);
-
 disp('Gaussian filtering the movie data...');
 
 h=fspecial('gaussian',filt_rad,filt_alpha);
@@ -81,7 +79,7 @@ MOV_DATA=imfilter(MOV_DATA,h,'circular');
 
 disp(['Converting to df/f using the ' num2str(per) ' percentile for the baseline...']);
 
-baseline=repmat(prctile(MOV_DATA,per,3),[1 1 frames]);
+mov_prctile=prctile(MOV_DATA,per,3);
 
 figure();
 
@@ -119,6 +117,8 @@ if time_select
 
 end
 
+[rows,columns,frames]=size(MOV_DATA);
+baseline=repmat(mov_prctile,[1 1 frames]);
 dff=((MOV_DATA-baseline)./baseline).*100;
 
 % take the center of mass across dim 3 (time) for each point in space
