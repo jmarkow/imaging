@@ -47,8 +47,10 @@ for i=1:2:nparams
 end
 
 if length(SIGNAL)<=N
-	disp(['Length of signal longer than N, truncating N to ' num2str(floor(length(SIGNAL)/5))]);
-	difference=N-overlap;
+	%disp(['Length of signal shorter than N, truncating N to ' num2str(floor(length(SIGNAL)/5))]);
+	warning('Length of signal shorter than N, trunacting N to %g',num2str(floor(length(SIGNAL)/5)));
+    fprintf(1,'\n\n');
+    difference=N-overlap;
 	N=floor(length(SIGNAL)/3);
 	overlap=N-difference;
 	nfft=[];

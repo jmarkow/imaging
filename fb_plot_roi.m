@@ -20,6 +20,8 @@ filt_alpha=10;
 min_f=0;
 max_f=9e3;
 lims=1;
+dff_scale=20;
+t_scale=2;
 
 nparams=length(varargin);
 
@@ -51,6 +53,10 @@ for i=1:2:nparams
 			filt_alpha=varargin{i+1};
 		case 'filt_rad'
 			filt_rad=varargin{i+1};
+		case 'dff_scale'
+			dff_scale=varargin{i+1};
+		case 't_scale'
+			t_scale=varargin{i+1};
 	end
 end
 
@@ -77,120 +83,49 @@ ave_time=0:1/ave_fs:length(mic_data)/fs;
 % need to interpolate the average onto a new time bases
 
 roi_ave.raw={};
-roi_ave.interp=zeros(roi_n,length(ave_time),length(mov_listing));
-
+roi_ave.interp_dff=zeros(roi_n,length(ave_time),length(mov_listing));
+roi_ave.interp_raw=zeros(roi_n,length(ave_time),length(mov_listing));
 disp('Generating single trial figures...');
-
-[nblanks formatstring]=fb_progressbar(100);
-fprintf(1,['Progress:  ' blanks(nblanks)]);
 
 for i=1:length(mov_listing)
 
-	fprintf(1,formatstring,round((i/length(mov_listing))*100));
-
+	disp(['Processing file ' num2str(i) ' of ' num2str(length(mov_listing))]);
 	load(fullfile(pwd,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs');
 
 	[path,file,ext]=fileparts(mov_listing{i});
 	save_file=[ file '_roi' ];
 
-	[song_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
+	[b,a]=ellip(5,.2,80,[500]/(fs/2),'high');
 
-	mov_norm=mov_data;
+	[song_image,f,t]=fb_pretty_sonogram(filtfilt(b,a,double(mic_data)),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2000);	
 
 	% roi_traces
 
 	[rows,columns,frames]=size(mov_data);
 	roi_t=zeros(roi_n,frames);
 
-	for j=1:frames
-		for k=1:roi_n
-			tmp=mov_norm(ROIS{k}(:,1),ROIS{k}(:,2),j);
-			roi_t(k,j)=mean(tmp(:));
-		end
-	end
-
-
-	% break into a grid of columns and rows to plot >5 rois
-
-	% plot each roi in a subplot, perhaps use subaxis to keep things close together
-	
 	timevec=frame_idx./fs;
-	nplots=roi_n+1;
 
-	ncolumns=ceil(roi_n/max_row);
-	lastcol=mod(roi_n,max_row);
+	disp('Computing ROI averages...');
 
-	if lastcol==0
-		lastcol=max_row;
-	end
+	[nblanks formatstring]=fb_progressbar(100);
+	fprintf(1,['Progress:  ' blanks(nblanks)]);
 
-	if roi_n<max_row
-		nrows=roi_n;
-	else
-		nrows=max_row;
-	end
+	% unfortunately we need to for loop by frames, otherwise
+	% we'll eat up too much RAM for large movies
 
-	ax=[];
-	
-	save_fig=figure('visible','off');
-	set(save_fig,'position',[100 100 300*ncolumns 100*nrows],'PaperPositionMode','auto')
-	clf;
+	for j=1:roi_n
+		fprintf(1,formatstring,round((j/roi_n)*100));
 
-	counter=1;
-	col=1;
-
-	for j=1:ncolumns
-	
-		%ax(end+1)=subplot(nrows,ncolumns,j);
-		ax(end+1)=subaxis(nrows,ncolumns,j,1,1,1,'spacingvert',.012,'marginbottom',.2);
-	
-		imagesc(t,f./1e3,song_image);axis xy;box off;
-		colormap(sono_colormap);
-		ylim([min_f/1e3 max_f/1e3]);
-		ylabel('Fs (kHz)');
-
-		set(gca,'TickDir','out','linewidth',1,'FontSize',12);
-		set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
-
-		if j<ncolumns
-			curr_rows=nrows;
-		else
-			curr_rows=lastcol;
+		for k=1:frames
+			tmp=mov_data(ROIS{j}(:,1),ROIS{j}(:,2),k);
+			roi_t(j,k)=mean(tmp(:));
 		end
-
-		for k=1:curr_rows
-
-			%ax(end+1)=subplot(nrows,ncolumns,((k).*ncolumns)+j);
-			
-			ax(end+1)=subaxis(nrows,ncolumns,j,k+1,1,1,'spacingvert',.012,'marginbottom',.2);
-			set(gca,'TickDir','out','linewidth',1,'FontSize',12);
-			plot(timevec,roi_t(counter,:),'color',colors(counter,:));
-			box off;
-
-			if k<curr_rows
-				set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
-			end
-
-			axis tight;
-			ylabel(['ROI ' num2str(counter)],'FontSize',10,'FontName','Helvetica');
-			counter=counter+1;
-
-		end
-
-		linkaxes(ax,'x');box off;
-		xlim([timevec(1) timevec(end)]);
-		xlabel('Time (in s)','FontSize',12,'FontName','Helvetica');
-
-
 	end
 
-	fb_multi_fig_save(save_fig,save_dir,save_file,'eps,png,fig','res',100);
-	close([save_fig]);
-	save(fullfile(save_dir,[save_file '.mat']),'roi_t','frame_idx');
+	fprintf(1,'\n');
 
-	roi_ave.raw{i}=roi_t; % store for average
-
-	% 1d interpolate all rois to common frame
+	dff=zeros(size(roi_t));
 
 	for j=1:roi_n
 
@@ -206,120 +141,66 @@ for i=1:length(mov_listing)
 			norm_fact=prctile(tmp,per);
 		end
 
-		dff=((tmp-norm_fact)./norm_fact).*100;
+		dff(j,:)=((tmp-norm_fact)./norm_fact).*100;
 
-		yy=interp1(frame_idx./fs,dff,ave_time,'spline');
-		roi_ave.interp(j,:,i)=yy;
+		yy=interp1(timevec,dff(j,:),ave_time,'spline');
+		yy2=interp1(timevec,tmp,ave_time,'spline');
+
+		roi_ave.interp_dff(j,:,i)=yy;
+		roi_ave.interp_raw(j,:,i)=yy2;
+
 	end
+
+	detrended=fb_roi_detrend(dff,timevec,'normalize',0);
+	save_fig=figure('visible','off');box off;
+	set(save_fig,'paperpositionmode','auto','position',[100 100 450 900])
+
+	ax(1)=subplot(7,1,1:2);
+	imagesc(t,f./1e3,song_image);axis xy;
+	xlabel('Time (in s)');
+	ylabel('Freq. (kHz)');
+	ylim([min_f/1e3 max_f/1e3]);
+	set(gca,'TickDir','out');
+	colormap(sono_colormap);freezeColors();
+
+	ax(2)=subplot(7,1,3:7);
+	fb_plot_roi_stackplot(detrended,timevec,'spacing',8,'colors',colors);axis off;
+	line([-.25 -.25],[0 dff_scale],'clipping','off','linewidth',2.5);
+	line([0 t_scale],[-5 -5],'clipping','off','linewidth',2.5);	
+	linkaxes(ax,'x');
 
 	% loop through each ROI, average data
 
+	% break into a grid of columns and rows to plot >5 rois
+
+	% plot each roi in a subplot, perhaps use subaxis to keep things close together
+	
+	fb_multi_fig_save(save_fig,save_dir,save_file,'eps,png,fig','res',100);
+	save(fullfile(save_dir,[save_file '.mat']),'roi_t','frame_idx','fs','timevec');
+
+	roi_ave.raw{i}=roi_t; % store for average
+	roi_ave.filename{i}=mov_listing{i};
+	% 1d interpolate all rois to common frame
+
 end
 
-
-fprintf(1,'\n');
+save(fullfile(save_dir,['ave_roi.mat']),'ave_time','roi_ave');
 disp('Generating average ROI figure...');
 
 % plot the averages with confidence intervals
 
-nplots=roi_n+1;
-timevec=ave_time;
+%timevec=ave_time;
 
 % if template is passed use the template mic trace, otherwise use the last song
 
-roi_mu=mean(roi_ave.interp,3);
-roi_sem=std(roi_ave.interp,[],3)./sqrt(size(roi_ave.interp,3));
+%roi_mu=mean(roi_ave.interp_dff,3);
+%roi_sem=std(roi_ave.interp_dff,[],3)./sqrt(size(roi_ave.interp_dff,3));
 
-if ~isempty(template)
-	[song_image,f,t]=fb_pretty_sonogram(double(template),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
-end
+%if ~isempty(template)
+%	[song_image,f,t]=fb_pretty_sonogram(double(template),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);	
+%end
 
-ncolumns=ceil(roi_n/max_row);
-lastcol=mod(roi_n,max_row);
-
-if lastcol==0
-	lastcol=max_row;
-end
-
-if roi_n<max_row
-	nrows=roi_n;
-else
-	nrows=max_row;
-end
-
-ax=[];
-
-save_fig=figure('visible','off');
-set(save_fig,'position',[100 100 300*ncolumns 100*nrows],'PaperPositionMode','auto')
-clf;
-
-counter=1;
-for j=1:ncolumns
-
-	ax(end+1)=subaxis(nrows,ncolumns,j,1,1,1,'spacingvert',.012,'marginbottom',.2);
-
-	imagesc(t,f./1e3,song_image);axis xy;box off;
-	ylim([min_f/1e3 max_f/1e3]);
-	colormap(sono_colormap);
-	ylabel('Fs (kHz)');
-
-	set(gca,'TickDir','out','linewidth',1,'FontSize',12);
-	set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
-
-	if j<ncolumns
-		curr_rows=nrows;
-	else
-		curr_rows=lastcol;
-	end
-
-	for k=1:curr_rows
-
-		ax(end+1)=subaxis(nrows,ncolumns,j,k+1,1,1,'spacingvert',.012,'marginbottom',.2);
-		set(gca,'TickDir','out','linewidth',1,'FontSize',12);
-		plot(ave_time,roi_mu(counter,:),'color',colors(counter,:));hold on;
-		plot(ave_time,roi_mu(counter,:)+roi_sem(counter,:),'k--','color',colors(counter,:));
-		plot(ave_time,roi_mu(counter,:)-roi_sem(counter,:),'k--','color',colors(counter,:));
-
-		box off;
-
-		if k<curr_rows
-			set(gca,'xcolor',get(gcf,'color'),'xtick',[]);
-		end
-
-		axis tight;
-		ylabel(['ROI ' num2str(counter)],'FontSize',10,'FontName','Helvetica');
-		counter=counter+1;
-	end
-
-	linkaxes(ax,'x');box off;
-	xlim([timevec(1) timevec(end)]);
-	xlabel('Time (in s)','FontSize',12,'FontName','Helvetica');
-
-end
-
-linkaxes(ax,'x');
-xlim([timevec(1) timevec(end)]);
-
-fb_multi_fig_save(save_fig,save_dir,'ave_roi','eps,png,fig','res',100);
+%fb_multi_fig_save(save_fig,save_dir,'ave_roi','eps,png,fig','res',100);
 
 %%%%%%%%%%%%% CELL MASK MATCHED TO ROI
 % plot cell masks color-matched to their ROIs 
-
-% first five rows are reserved for the max proj
-
-disp('Creating maximum projection image...');
-
-load(fullfile(pwd,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs');
-
-h=fspecial('gaussian',filt_rad,filt_alpha);
-mov_data=imfilter(mov_data,h);
-max_proj=max(mov_data,[],3);
-
-clims(1)=prctile(max_proj(:),lims);
-clims(2)=prctile(max_proj(:),100-lims);
-
-save_fig=figure('visible','off');
-
-save(fullfile(save_dir,['ave_roi.mat']),'ave_time','roi_ave','roi_mu','roi_sem');
-close([save_fig]);
-

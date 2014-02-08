@@ -74,17 +74,47 @@ disp('Filtering images, this may take a minute...');
 [rows,columns,frames]=size(mov_data);
 h=fspecial('gaussian',filt_rad,filt_alpha);
 
-mov_data=imfilter(mov_data,h,'circular');
+[nblanks formatstring]=fb_progressbar(100);
+fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+for j=1:frames
+	fprintf(1,formatstring,round((j/frames)*100));	
+	mov_data(:,:,j)=imfilter(mov_data(:,:,j),h,'circular');
+end
+
+fprintf(1,'\n');
+
+raw_proj=max(mov_data,[],3);
+clims(1)=prctile(raw_proj(:),lims);
+clims(2)=prctile(raw_proj(:),100-lims);
 
 baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 dff=((mov_data-baseline)./baseline).*100;
 
+clear mov_data;
+
+dff_mu=zeros(size(dff));
+
 h=fspecial('average',ave_scale);
-dff_mu=imfilter(dff,h,'circular');
+
+[nblanks formatstring]=fb_progressbar(100);
+fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+for j=1:frames
+	fprintf(1,formatstring,round((j/frames)*100));	
+	dff_mu(:,:,j)=imfilter(dff(:,:,j),h,'circular');
+end
+
+fprintf(1,'\n');
+
 pad_pxs=floor(ave_scale/4); % don't take anything too close to the edge
 
 dff=(dff-dff_mu);
 max_proj=max(dff,[],3);
+
+clear dff;
+clear dff_mu;
+
 max_proj=max(max_proj./max(max_proj(:)),0); % convert to [0,1]
 max_proj=medfilt2(max_proj,[med_scale med_scale]); 
 max_proj=max_proj(pad_pxs:end-pad_pxs,pad_pxs:end-pad_pxs);
@@ -99,9 +129,7 @@ pad_x=zeros(size(max_proj,1),pad_pxs);
 
 max_proj=[ pad_x max_proj pad_x ];
 
-raw_proj=max(mov_data,[],3);
-clims(1)=prctile(raw_proj(:),lims);
-clims(2)=prctile(raw_proj(:),100-lims);
+
 
 % scale the raw projection from [0,1]
 

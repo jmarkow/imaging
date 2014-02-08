@@ -1,4 +1,4 @@
-function mov_ave=fb_mov_proc(DIR,varargin)
+function fb_mov_proc(DIR,varargin)
 % fb_mov_proc processes movie data and creates a series of movies and images for
 % further analysis (NOTE:  this requires the VideoWriter class, not available 
 % in older versions of MATLAB)
@@ -19,7 +19,7 @@ activity_map='gray'; % colormap for activity
 cb_height=.03; % colorbar height (in normalized units)
 motion_correction=1; % 0 for no correction, 1 for correction
 motion_crop=20; % allowable crop for motion correction (deleted for later movies)
-per=8; % percentile to use for baseline compution (robust minimum)
+per=0; % percentile to use for baseline compution (robust minimum)
 outlier_detect=1; % 0 for no outlier detection, 1 for detection
 outlier_mads=6; % number of median absolute deviations from the median a pixel must be
 		% to be designated an outlier
@@ -117,15 +117,7 @@ end
 
 fprintf(1,'\n');
 
-ave_time=min_tmp:1/ave_playback_fs*fs:max_tmp;
-ave_frames=length(ave_time);
-ave_counter=zeros(1,length(ave_time));
-mov_ave=zeros(height,width,ave_frames);
-
 h = fspecial('gaussian',filt_rad, filt_alpha); % could use a gaussian as well 
-
-disp('Processing image data');
-
 
 if debug
 	fig=figure('visible','on','renderer','zbuffer','PaperPositionMode','auto');
@@ -135,6 +127,9 @@ end
 
 old_save_dir=save_dir;
 motion_flag=0;
+
+ave_time=min_tmp:1/ave_playback_fs*fs:max_tmp;
+ave_frames=length(ave_time);
 
 for i=1:length(mov_listing)
 
@@ -150,16 +145,28 @@ for i=1:length(mov_listing)
 
 	load(fullfile(DIR,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs');
 
-	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2040);
+	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2000);
 	[rows,columns,frames]=size(mov_data);
-	
-	mov_filt=imfilter(mov_data,h);
+
+	mov_filt=zeros(size(mov_data));
+
+	disp('Filtering image data...');
+
+	[nblanks formatstring]=fb_progressbar(100);
+	fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+	for j=1:frames
+		fprintf(1,formatstring,round((j/frames)*100));	
+		mov_filt(:,:,j)=imfilter(mov_data(:,:,j),h);
+	end
+
+	fprintf(1,'\n');
 
 	% first do outlier detection
-
 	
 	if outlier_detect
 
+		disp('Entering outlier detection...');
 
 		% get the median
 
@@ -196,11 +203,9 @@ for i=1:length(mov_listing)
 
 	end
 
-
-
 	if motion_correction && ~outlier_flag
 
-		new_mov_filt=zeros(rows-2*motion_crop,columns-2*motion_crop,frames);
+		%new_mov_filt=zeros(rows-2*motion_crop,columns-2*motion_crop,frames);
 
 		disp('Performing motion correction...');
 
@@ -208,24 +213,12 @@ for i=1:length(mov_listing)
 		
 		if ~motion_flag
 
-			%[filename,pathname]=uigetfile({'*.mat'},'Pick a movie file to extract the template from',pwd);
-			%template=load(fullfile(pathname,filename),'mov_data');
-
 			% correction template, select coordinates
-
-			%corr_tmp=imfilter(template.mov_data(:,:,:),h);
-			%corr_tmp=mean(corr_tmp,3); % average
-
-			%corr_tmp=corr_tmp(:,:,1); % take the first frame
 
 			disp('Motion correction region selection...');
 			disp('Drag the rectangle to enclose the template region and double-click to finish...');
 
 			corr_tmp=mov_filt(:,:,1);
-
-			%corr_tmp(corr_tmp>clim(2))=clim(2);
-			%corr_tmp=max(corr_tmp-clim(1),0);
-			%corr_tmp=corr_tmp./max(corr_tmp(:));
 
 			overview_fig=figure('Toolbar','none','Menubar','none');
 			overview_img=imshow(corr_tmp./max(corr_tmp(:)));
@@ -289,23 +282,30 @@ for i=1:length(mov_listing)
 			tmp=tmp-mean(tmp(:));
 			tmp=tmp./std(tmp(:));
 
-			[output Greg]=dftregistration(correction_fft,fft2(tmp),100);	
+			% last argument is upsample factor
+
+			[output Greg]=dftregistration(correction_fft,fft2(tmp),10);
 			%output
 
 			shift=round(output(3:4));
 			shift(shift>motion_crop)=motion_crop;
 
+			mov_data(:,:,j)=circshift(mov_data(:,:,j),[shift]);
 			mov_filt(:,:,j)=circshift(mov_filt(:,:,j),[shift]);
 
 		end
 
-		new_mov_filt=mov_filt(motion_crop:rows-motion_crop,motion_crop:columns-motion_crop,:);
-		mov_filt=new_mov_filt;
+		mov_data=mov_data(motion_crop:rows-motion_crop,motion_crop:columns-motion_crop,:);
+		mov_filt=mov_filt(motion_crop:rows-motion_crop,motion_crop:columns-motion_crop,:);
 
 		% save the motion corrected data
 
-		save(fullfile(save_dir,[file '_motioncorrected.mat']),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','motion_crop');
+		save(fullfile(save_dir,[file '_motioncorrected.mat']),'mov_data','mov_idx',...
+			'frame_idx','mic_data','fs','movie_fs','motion_crop','-v7.3');
 		fprintf(1,'\n');
+
+		clear mic_data;
+		clear mov_data;
 
 	end
 
@@ -322,11 +322,12 @@ for i=1:length(mov_listing)
 		norm_fact=median(mov_filt,3);
 	elseif baseline==2
 		norm_fact=trimmean(mov_filt,trim_per,'round',3);
-	else
+	elseif baseline==3
 		norm_fact=prctile(mov_filt,per,3);
+	else
+		norm_fact=min(mov_filt,[],3);
 	end
 
-	std_fact=std(mov_filt,[],3);
 	clearvars hline;
 
 	set(0,'currentfigure',fig);
@@ -338,15 +339,39 @@ for i=1:length(mov_listing)
 	% normalize each pixel by its mean over time (median is probably better given
 	% the few frames we're working with)
 
+	norm_lim=zeros(2,frames);
+	raw_lim=zeros(size(norm_lim));
+
+	% average the prctiles across frames, otherwise too costly an operation (would require flattening the whole
+	% whole volume, sucking up way too much RAM)
+
+	mov_norm=zeros(size(mov_filt));
+
+	disp('Computing baseline...');
+
+	[nblanks formatstring]=fb_progressbar(100);
+	fprintf(1,['Progress:  ' blanks(nblanks)]);
+
 	for j=1:frames
-		mov_norm(:,:,j)=((mov_norm(:,:,j)-norm_fact)./norm_fact).*100; % df/f (in percent)
+
+		fprintf(1,formatstring,round((j/frames)*100));	
+		
+		tmp=mov_filt(:,:,j);
+		tmp2=((tmp-norm_fact)./norm_fact).*100; % df/f (in percent)
+
+		mov_norm(:,:,j)=tmp2;
+
+		norm_lim(:,j)=prctile(tmp2(:),[lims 100-lims]);
+		raw_lim(:,j)=prctile(tmp(:),[lims 100-lims]);
 	end
 
-	norm_lim(1)=prctile(mov_norm(:),lims);
-	norm_lim(2)=prctile(mov_norm(:),100-lims);
+	fprintf(1,'\n');
 
-	raw_lim(1)=prctile(mov_filt(:),lims);
-	raw_lim(2)=prctile(mov_filt(:),100-lims);
+	tmp=median(norm_lim,2);
+	norm_lim=tmp;
+
+	tmp=median(raw_lim,2);
+	raw_lim=tmp;
 
 	% dff movie
 
@@ -358,7 +383,6 @@ for i=1:length(mov_listing)
 		movie_t(j)=ave_time(idx)./fs;
 		movie_idx(j)=idx;
 	end
-
 
 	disp('Writing df/f movie...');
 

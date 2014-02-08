@@ -610,7 +610,7 @@ for i=1:length(USED_FILENAMES)
 	% save an initial baseline estimate?
 
 	save(fullfile(OUT_DIR,'mov',[ save_filename '.mat' ]),...
-		'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs');
+		'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','-v7.3');
 
 	% save sonogram of extraction
 
