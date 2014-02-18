@@ -22,6 +22,7 @@ save_dir='roi';
 per=2; % baseline percentile (0 for min)
 ave_scale=40; % for adaptive threshold, scale for averaging filter
 med_scale=22; % for removing speckle noise from maximum projection
+resize_correct=1; % correction of parameters for resized movies
 
 % parameters used for morphological opening
 
@@ -63,7 +64,17 @@ end
 if nargin<1 | isempty(DIR), DIR=pwd; end
 
 [filename,pathname]=uigetfile({'*.mat'},'Pick a mat file to extract the image data from',fullfile(DIR,'..'));
-load(fullfile(pathname,filename),'mov_data');
+load(fullfile(pathname,filename),'mov_data','im_resize');
+
+if resize_correct & im_resize~=1
+
+	disp('Correcting parameters since file has been downsampled...');
+	ave_scale=round(ave_scale.*im_resize);
+	med_scale=round(med_scale.*im_resize);
+	filt_rad=round(filt_rad.*im_resize);
+	filt_alpha=filt_alpha.*im_resize;
+
+end
 
 %if exist(save_dir,'dir') rmdir(save_dir,'s'); end
 

@@ -26,6 +26,7 @@ outlier_mads=6; % number of median absolute deviations from the median a pixel m
 outlier_frac=.1; % fraction of pixels that must be outliers in a single frame to reject a
 		 % movie
 junk_dir='junk';
+resize_correct=1; % correct parameters if movie has been downsampled
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -63,6 +64,8 @@ for i=1:2:nparams
 			outlier_frac=varargin{i+1};
 		case 'junk_dir'
 			junk_dir=varargin{i+1};
+		case 'resize_correct'
+			resize_correct=varargin{i+1};
 	end
 end
 
@@ -117,7 +120,6 @@ end
 
 fprintf(1,'\n');
 
-h = fspecial('gaussian',filt_rad, filt_alpha); % could use a gaussian as well 
 
 if debug
 	fig=figure('visible','on','renderer','zbuffer','PaperPositionMode','auto');
@@ -131,6 +133,10 @@ motion_flag=0;
 ave_time=min_tmp:1/ave_playback_fs*fs:max_tmp;
 ave_frames=length(ave_time);
 
+filt_rad1=filt_rad;
+filt_alpha1=filt_alpha;
+motion_crop1=motion_crop;
+
 for i=1:length(mov_listing)
 
 	save_dir=old_save_dir;
@@ -143,7 +149,17 @@ for i=1:length(mov_listing)
 
 	% compute sonogram of mic_data
 
-	load(fullfile(DIR,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs');
+	load(fullfile(DIR,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','im_resize');
+
+	if resize_correct & im_resize~=1
+		disp('Correcting parameters since file has been downsampled...');
+		filt_rad=round(filt_rad1.*im_resize);
+		filt_alpha=filt_alpha1.*im_resize;
+		motion_crop=round(motion_crop1.*im_resize);
+	end
+		
+
+	h = fspecial('gaussian',filt_rad, filt_alpha); % could use a gaussian as well 
 
 	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2000);
 	[rows,columns,frames]=size(mov_data);
@@ -301,7 +317,7 @@ for i=1:length(mov_listing)
 		% save the motion corrected data
 
 		save(fullfile(save_dir,[file '_motioncorrected.mat']),'mov_data','mov_idx',...
-			'frame_idx','mic_data','fs','movie_fs','motion_crop','-v7.3');
+			'frame_idx','mic_data','fs','movie_fs','motion_crop','im_resize','-v7.3');
 		fprintf(1,'\n');
 
 		clear mic_data;

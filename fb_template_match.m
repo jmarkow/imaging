@@ -28,7 +28,7 @@ function fb_template_match(TEMPLATE,varargin)
 %		indicates whether or not to extract and save hits (logic, default: 1)
 %
 %		im_resize
-%		resize factor for movie files (<1 downsamples, >1 upsamples, 1 no change, default: 1)
+%		resize factor for movie files (<1 downsamples, >1 upsamples, 1 or empty no change, default: empty)
 %
 %		padding
 %		two element vector that specifies how many seconds before and after the match to extract
@@ -46,7 +46,7 @@ extract_sounds=1;
 out_dir='';
 sound_dir='';
 template_data=[];
-im_resize=1;
+im_resize=[];
 padding=[.2 .2];
 
 % parameter collection
@@ -606,11 +606,17 @@ for i=1:length(USED_FILENAMES)
 	mic_data=MIC_DATA(:,i);
 	fs=FS;
 	movie_fs=MOVIE_FS;
+	
+	if isempty(IM_RESIZE)
+		im_resize=1;
+	else
+		im_resize=IM_RESIZE;
+	end
 
 	% save an initial baseline estimate?
 
 	save(fullfile(OUT_DIR,'mov',[ save_filename '.mat' ]),...
-		'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','-v7.3');
+		'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','im_resize','-v7.3');
 
 	% save sonogram of extraction
 

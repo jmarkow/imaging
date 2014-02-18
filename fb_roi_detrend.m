@@ -11,7 +11,7 @@ function [DETRENDED,BASELINE]=fb_roi_detrend(ROI,T,varargin)
 nparams=length(varargin);
 per=0;
 normalize=1;
-cutoff=.05;
+cutoff=.2;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');

@@ -1,7 +1,18 @@
 function fb_plot_3dtime(DATA,T,varargin)
+%fb_plot_3dtime plots a 3-d trajectory over time using a colormap.
+%
+%	fb_plot_3dtime(DATA,T,varargin)
+%
+%	DATA
+%	samples x dimensions matrix with at least 3 dimensions containing
+%	the data to plot
+%
+%	T
+%	nsamples vector that specifies the point in time associated with 
+%	each sample (default to 1:nsamples if T is not provided)
 %
 %
-%
+%		the following may be passed as parameter value pairs
 %
 %
 %
@@ -29,6 +40,8 @@ for i=1:2:nparams
 			dims=varargin{i+1};
 	end
 end
+
+if nargin<2 | isempty(T), T=1:size(plotdata,1); end
 
 plotdata=DATA(:,dims);
 
