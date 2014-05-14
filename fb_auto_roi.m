@@ -23,7 +23,6 @@ per=2; % baseline percentile (0 for min)
 ave_scale=40; % for adaptive threshold, scale for averaging filter
 med_scale=22; % for removing speckle noise from maximum projection
 resize_correct=1; % correction of parameters for resized movies
-
 % parameters used for morphological opening
 
 erode_scale=3; % scale (in pxs) for erosion
@@ -63,6 +62,7 @@ end
 
 if nargin<1 | isempty(DIR), DIR=pwd; end
 
+im_resize=1; % if im_resize does not exist as a variable, the data has not been resized!
 [filename,pathname]=uigetfile({'*.mat'},'Pick a mat file to extract the image data from',fullfile(DIR,'..'));
 load(fullfile(pathname,filename),'mov_data','im_resize');
 
@@ -139,8 +139,6 @@ max_proj=[ pad_y;max_proj;pad_y ];
 pad_x=zeros(size(max_proj,1),pad_pxs);
 
 max_proj=[ pad_x max_proj pad_x ];
-
-
 
 % scale the raw projection from [0,1]
 
@@ -228,9 +226,9 @@ for i=1:length(conn_comp.PixelIdxList);
 	text(x,y,[num2str(i)],'FontSize',12,'FontName','Helvetica','color','r','FontWeight','bold');
 end
 
-fb_multi_fig_save(save_fig,save_dir,'roi_map','tiff','res','100');
+fb_multi_fig_save(save_fig,save_dir,'roi_map_auto','tiff','res','100');
 close(save_fig);
-save(fullfile(save_dir,'roi_data.mat'),'EXTRACTED_ROI','STATS');
+save(fullfile(save_dir,'roi_data_auto.mat'),'EXTRACTED_ROI','STATS');
 
 end
 
