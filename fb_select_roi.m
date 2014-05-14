@@ -248,7 +248,7 @@ while 1>0
 	% Svoboda et al. (take an annulus surrounding the ROI)
 	set(0,'CurrentFigure',slider_fig);
 	pl_centroids(end+1)=...
-		plot(centroid(end,2),centroid(end,1),'k.','color',roi_map(counter,:),'markersize',45.*im_resize);
+		plot(centroid(end,2),centroid(end,1),'k.','color',roi_map(counter,:),'markersize',25.*im_resize);
 
 	counter=counter+1; % increment the colormap
 
