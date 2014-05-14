@@ -20,6 +20,7 @@ ave_scale=40; % for adaptive threshold, scale for averaging filter
 resize_correct=1; % correction of parameters for resized movies
 activity_colormap='gray'; % colormap for activity
 mode='dff';
+resize=1;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -53,6 +54,8 @@ for i=1:2:nparams
 			lims=varargin{i+1};
 		case 'mode'
 			mode=varargin{i+1};
+		case 'resize'
+			resize=varargin{i+1};
 	end
 end
 
@@ -60,10 +63,28 @@ end
 if nargin<1 | isempty(DIR), DIR=pwd; end
 
 im_resize=1; % if im_resize does not exist as a variable, the data has not been resized!
+
 [filename,pathname]=uigetfile({'*.mat'},'Pick a mat file to extract the image data from',fullfile(DIR,'..'));
 load(fullfile(pathname,filename),'mov_data','im_resize');
 
-%mov_data=mov_data(:,:,1:5);
+[rows,columns,frames]=size(mov_data);
+
+if resize~=1
+
+	disp(['Resizing movie data by factor of ' num2str(resize)]);
+	frameone=imresize(mov_data(:,:,1),resize);
+	[new_rows,new_columns]=size(frameone);
+
+	new_mov=zeros(new_rows,new_columns,frames);
+
+	for i=1:frames		
+		new_mov(:,:,i)=imresize(mov_data(:,:,i),resize);
+	end
+	
+	im_resize=im_resize.*resize;
+	mov_data=new_mov;
+
+end
 
 if resize_correct & im_resize~=1
 
@@ -74,7 +95,7 @@ if resize_correct & im_resize~=1
 
 end
 
-
+[rows,columns,frames]=size(mov_data);
 mkdir(save_dir);
 
 % maximum projection
@@ -82,7 +103,6 @@ mkdir(save_dir);
 
 disp('Filtering images, this may take a minute...');
 
-[rows,columns,frames]=size(mov_data);
 h=fspecial('gaussian',filt_rad,filt_alpha);
 
 [nblanks formatstring]=fb_progressbar(100);
@@ -258,9 +278,19 @@ while 1>0
 
 end
 
+if resize~=1
+	
+	disp('Putting ROI coordinates back into the original movie frame...');
+
+	for i=1:length(EXTRACTED_ROI)
+		EXTRACTED_ROI{i}=EXTRACTED_ROI{i}.*(1/resize);
+		centroid(i,:)=centroid(i,:).*(1/resize);
+	end
+end
+
 % draw rois onto max_proj and be done!
 
-save(fullfile(save_dir,'ave_roi_manual.mat'),'EXTRACTED_ROI','centroid');
+save(fullfile(save_dir,'roi_data_manual.mat'),'EXTRACTED_ROI','centroid');
 fb_multi_fig_save(save_fig,save_dir,'roi_map_manual','tiff','res',100);
 close([save_fig]);
 
