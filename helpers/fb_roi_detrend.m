@@ -31,7 +31,7 @@ ave_fs=1./(diff(T(1:2)));
 % filter out slow drift
 
 BASELINE=prctile(ROI,per,2);
-[b,a]=butter(5,[cutoff]/(ave_fs/2),'high');
+[b,a]=butter(2,[cutoff]/(ave_fs/2),'high');
 %[b,a]=ellip(6,.2,50,[cutoff]/(ave_fs/2),'high');
 
 % assume each row is a new roi, each column is a timepoint

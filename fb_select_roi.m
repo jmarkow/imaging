@@ -1,4 +1,4 @@
-function EXTRACTED_ROI=fb_select_roi(DIR,varargin)
+function [EXTRACTED_ROI STATS]=fb_select_roi(varargin)
 %fb_select_roi selects an arbitrary number of roi's for plotting
 %
 %
@@ -10,17 +10,19 @@ function EXTRACTED_ROI=fb_select_roi(DIR,varargin)
 
 nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
-filt_rad=30; % gauss filter radius
-filt_alpha=2; % gauss filter alpha
+filt_rad=12; % gauss filter radius
+filt_alpha=4; % gauss filter alpha
 lims=2; % contrast prctile limits
-roi_map=lines(40);
+roi_color=[1 1 0];
 save_dir='roi';
 per=2; % baseline percentile (0 for min)
 ave_scale=40; % for adaptive threshold, scale for averaging filter
 resize_correct=1; % correction of parameters for resized movies
 activity_colormap='gray'; % colormap for activity
 mode='dff';
-resize=1;
+resize=.5;
+fig_resize=0;
+label_color=[1 .5 0];
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -40,14 +42,6 @@ for i=1:2:nparams
 			filt_alpha=varargin{i+1};
 		case 'save_dir'
 			save_dir=varargin{i+1};
-		case 'w'
-			w=varargin{i+1};
-		case 'erode_scale'
-			erode_scale=varargin{i+1};
-		case 'dilate_scale'
-			dilate_scale=varargin{i+1};
-		case 'ave_scale'
-			ave_scale=varargin{i+1};
 		case 'per'
 			per=varargin{i+1};
 		case 'lims'
@@ -56,20 +50,45 @@ for i=1:2:nparams
 			mode=varargin{i+1};
 		case 'resize'
 			resize=varargin{i+1};
+		case 'roi_color'
+			roi_color=varargin{i+1};
+		case 'fig_resize'
+			fig_resize=varargin{i+1};
+		case 'label_color'
+			label_color=varargin{i+1};
 	end
 end
 
+disp('Loading data...');
 
-if nargin<1 | isempty(DIR), DIR=pwd; end
-
+resize_skip=0;
 im_resize=1; % if im_resize does not exist as a variable, the data has not been resized!
 
-[filename,pathname]=uigetfile({'*.mat'},'Pick a mat file to extract the image data from',fullfile(DIR,'..'));
-load(fullfile(pathname,filename),'mov_data','im_resize');
+[filename,pathname]=uigetfile({'*.mat';'*.tif'},'Pick a mat file to extract the image data from',pwd);
+[path,file,ext]=fileparts(filename);
+
+if strcmp(ext,'.mat')
+	load(fullfile(pathname,filename),'mov_data','im_resize');
+end
+
+if ~exist('mov_data','var')
+
+	disp('Retrieving tiff data...');
+	
+	% assume we're in the mat directory, now drop back to retrieve_mov
+
+	if resize~=1
+		[mov_data,frame_idx]=fb_retrieve_mov(fullfile(pathname,filename),'im_resize',resize);
+		resize_skip=1;
+		im_resize=resize;
+	end
+end
 
 [rows,columns,frames]=size(mov_data);
 
-if resize~=1
+% resize if we want
+
+if resize~=1 & ~resize_skip
 
 	disp(['Resizing movie data by factor of ' num2str(resize)]);
 	frameone=imresize(mov_data(:,:,1),resize);
@@ -83,13 +102,12 @@ if resize~=1
 	
 	im_resize=im_resize.*resize;
 	mov_data=new_mov;
-
+	clear new_mov;
 end
 
 if resize_correct & im_resize~=1
 
 	disp('Correcting parameters since file has been downsampled...');
-	ave_scale=round(ave_scale.*im_resize);
 	filt_rad=round(filt_rad.*im_resize);
 	filt_alpha=filt_alpha.*im_resize;
 
@@ -116,14 +134,18 @@ end
 fprintf(1,'\n');
 
 raw_proj=max(mov_data,[],3);
-clims(1)=prctile(raw_proj(:),lims);
-clims(2)=prctile(raw_proj(:),100-lims);
+
+% downsample to get the color limits
+
+clims=prctile(raw_proj(:),[lims 100-lims]);
 
 baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 dff=((mov_data-baseline)./baseline).*100;
+dff=single(dff); % convert to single before flattening to preserve memory
 
-dff_clims(1)=prctile(dff(:),lims);
-dff_clims(2)=prctile(dff(:),100-lims);
+dff_clims=prctile(dff(:),[lims 100-lims]);
+
+clear tmp;
 
 switch lower(mode(1))
 	case 'd'
@@ -133,21 +155,31 @@ switch lower(mode(1))
 		dff_clims=clims;
 end
 
-save_fig=figure();
-h_rawproj=imagesc(raw_proj);caxis([clims]);
-hold on;
-colormap(activity_colormap);
-axis off;
+% convert to uint8, faster loading for animation
+
+dff=min(dff,dff_clims(2)); % clip to max
+dff=max(dff-dff_clims(1),0); % clip min
+dff=dff./(dff_clims(2)-dff_clims(1)); % normalize to [0,1]
+dff=uint8(dff.*255);
 
 slider_fig=figure();
-h_dff=imagesc(dff(:,:,1));caxis([dff_clims]);
+h_dff=image(dff(:,:,1));caxis([0 255]);
+set(gca,'xlimmode','manual','ylimmode','manual',...
+	'zlimmode','manual','climmode','manual','alimmode','manual');
+set(slider_fig,'DoubleBuffer','off');
+colormap('gray(255)');
+
+if ~fig_resize
+	set(slider_fig,'resize','off','position',[50 50 columns rows+75]);
+	set(gca,'units','pixels','pos',[ 0 75 columns rows ]);
+end
+
 hold on;
-colormap(activity_colormap);
 axis off;
 
 hsl = uicontrol(slider_fig,'Style','slider','Min',1,'Max',frames,...
           'SliderStep',[1/frames 1/frames],'Value',1,...
-             'Units','Normalized','Position',[.2 .05 .6 .05]);
+             'Units','Normalized','Position',[.1 .05 .8 .05]);
 set(hsl,'Callback',{@slider_callback,slider_fig,dff,h_dff})
 
 % return a cell array with the ROI
@@ -173,10 +205,10 @@ ylimits(2)=ylimits(2)+10;
 fcn = makeConstrainToRectFcn('imellipse',xlimits,ylimits);
 setPositionConstraintFcn(h_ellipse,fcn);
 
+ellipses={};
 pl_ellipses=[];
 pl_centroids=[];
-pl_ellipses_raw=[];
-txt_centroid=[];
+diameter=[];
 
 counter=1;
 del_flag=0;
@@ -197,31 +229,20 @@ while 1>0
 		% is a centroid inside the ellipse?
 
 		if length(centroid)>0	
+		
 			del=inpolygon(centroid(:,2),centroid(:,1),h(:,1),h(:,2));
 			idx=find(del);
 
 			% clean up
 
 			EXTRACTED_ROI(idx)=[];
-
 			centroid(idx,:)=[];
-			delete(pl_centroids(idx));
+			ellipses(idx)=[];
+			diameter(idx)=[];
+
 			delete(pl_ellipses(idx));
-			delete(txt_centroid(:));
-			delete(pl_ellipses_raw(idx));
-
-			txt_centroid=[];
-			pl_centroids(idx)=[];
 			pl_ellipses(idx)=[];
-			pl_ellipses_raw(idx)=[];
 
-			% renumber so we're consistent
-
-			for i=1:size(centroid)
-				set(0,'CurrentFigure',save_fig);
-				txt_centroid(end+1)=text(centroid(i,2),centroid(i,1),sprintf('%i',i),...
-					'color',[1 0 0],'fontsize',30*im_resize),
-			end
 		end
 	end
 
@@ -254,28 +275,32 @@ while 1>0
 	EXTRACTED_ROI{end+1}=[ yi(idx) xi(idx) ];
 	centroid(end+1,:)=[ mean(yi(idx)) mean(xi(idx)) ];
 
-	set(0,'CurrentFigure',slider_fig);
-	pl_ellipses(end+1)=plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_map(counter,:));
-
-	set(0,'CurrentFigure',save_fig);
-	pl_ellipses_raw(end+1)=plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_map(counter,:));
-	txt_centroid(end+1)=text(centroid(end,2),centroid(end,1),sprintf('%i',size(centroid,1)),...
-		'color',[1 0 0],'fontsize',30*im_resize),
+	dist=pdist(h,'euclidean');
+	diameter(end+1)=max(dist);
 
 	set(0,'CurrentFigure',slider_fig);
+	
+	ellipses{end+1}=h;
+	pl_ellipses(end+1)=plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_color);
 
 	% what's inside of the ROI?  this could also be used to normalize fluorescene per 
 	% Svoboda et al. (take an annulus surrounding the ROI)
-	set(0,'CurrentFigure',slider_fig);
-	pl_centroids(end+1)=...
-		plot(centroid(end,2),centroid(end,1),'k.','color',roi_map(counter,:),'markersize',25.*im_resize);
 
 	counter=counter+1; % increment the colormap
 
-	if counter>size(roi_map,1)
-		counter=counter-size(roi_map,1);
-	end
+end
 
+save_fig=figure();
+h_rawproj=imagesc(raw_proj);caxis([clims]);
+hold on;
+colormap(activity_colormap);
+axis off;
+
+for i=1:length(ellipses)
+	h=ellipses{i};
+	plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_color);
+	text(centroid(i,2),centroid(i,1),sprintf('%i',i),...
+		'color',label_color,'fontsize',30*im_resize);
 end
 
 if resize~=1
@@ -290,7 +315,9 @@ end
 
 % draw rois onto max_proj and be done!
 
-save(fullfile(save_dir,'roi_data_manual.mat'),'EXTRACTED_ROI','centroid');
+STATS=struct('centroid',centroid,'diameter',diameter);
+
+save(fullfile(save_dir,'roi_data_manual.mat'),'EXTRACTED_ROI','STATS');
 fb_multi_fig_save(save_fig,save_dir,'roi_map_manual','tiff','res',100);
 close([save_fig]);
 

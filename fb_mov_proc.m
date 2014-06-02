@@ -27,6 +27,7 @@ outlier_frac=.1; % fraction of pixels that must be outliers in a single frame to
 		 % movie
 junk_dir='junk';
 resize_correct=1; % correct parameters if movie has been downsampled
+resize=1; % change to resize the motion-corrected movies (similar to im_resize in fb_template_match.m
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -66,6 +67,8 @@ for i=1:2:nparams
 			junk_dir=varargin{i+1};
 		case 'resize_correct'
 			resize_correct=varargin{i+1};
+		case 'resize'
+			resize=varargin{i+1};
 	end
 end
 
@@ -151,6 +154,8 @@ for i=1:length(mov_listing)
 
 	load(fullfile(DIR,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','im_resize');
 
+
+
 	if resize_correct & im_resize~=1
 		disp('Correcting parameters since file has been downsampled...');
 		filt_rad=round(filt_rad1.*im_resize);
@@ -158,7 +163,6 @@ for i=1:length(mov_listing)
 		motion_crop=round(motion_crop1.*im_resize);
 	end
 		
-
 	h = fspecial('gaussian',filt_rad, filt_alpha); % could use a gaussian as well 
 
 	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2000);

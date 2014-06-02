@@ -6,7 +6,7 @@ function roi_ave=fb_plot_roi(ROIS,varargin)
 %
 %
 
-colors=colormap('lines');
+colors=colormap(['winter(' num2str(length(ROIS)) ')']);
 sono_colormap='hot';
 baseline=3;
 ave_fs=100;
@@ -15,13 +15,13 @@ template=[];
 fs=24.414e3;
 per=2;
 max_row=5;
-filt_rad=30;
-filt_alpha=10;
 min_f=0;
 max_f=9e3;
 lims=1;
 dff_scale=20;
 t_scale=2;
+resize=1;
+detrend_traces=0;
 
 nparams=length(varargin);
 
@@ -49,14 +49,22 @@ for i=1:2:nparams
 			per=vargin{i+1};
 		case 'max_row'
 			max_row=varargin{i+1};
-		case 'filt_alpha'
-			filt_alpha=varargin{i+1};
-		case 'filt_rad'
-			filt_rad=varargin{i+1};
 		case 'dff_scale'
 			dff_scale=varargin{i+1};
 		case 't_scale'
 			t_scale=varargin{i+1};
+		case 'resize'
+			resize=varargin{i+1};
+		case 'detrend_traces'
+			detrend_traces=varargin{i+1};
+	end
+end
+
+if resize~=1
+	disp(['Adjusting ROIs for resizing by factor ' num2str(resize)]);
+
+	for i=1:length(ROIS)
+		ROIS{i}=round(ROIS{i}.*resize);
 	end
 end
 
@@ -92,8 +100,31 @@ for i=1:length(mov_listing)
 	disp(['Processing file ' num2str(i) ' of ' num2str(length(mov_listing))]);
 	load(fullfile(pwd,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs');
 
+	% resize if we want
+
+	if resize~=1
+
+		disp(['Resizing movie data by factor of ' num2str(resize)]);
+
+		frameone=imresize(mov_data(:,:,1),resize);
+		[new_rows,new_columns]=size(frameone);
+
+		new_mov=zeros(new_rows,new_columns,frames);
+
+		for j=1:frames		
+			new_mov(:,:,j)=imresize(mov_data(:,:,j),resize);
+		end
+		
+		%im_resize=im_resize.*resize;
+		mov_data=new_mov;
+		clear new_mov;
+
+	end
+
 	[path,file,ext]=fileparts(mov_listing{i});
 	save_file=[ file '_roi' ];
+
+	% highpass for mic trace
 
 	[b,a]=ellip(5,.2,80,[500]/(fs/2),'high');
 
@@ -103,6 +134,12 @@ for i=1:length(mov_listing)
 
 	[rows,columns,frames]=size(mov_data);
 	roi_t=zeros(roi_n,frames);
+
+	if length(frame_idx)~=frames
+		warning('Trial %i file %s may be corrupted, frame indices %g not equal to n movie frames %g',...
+			i,mov_listing{i},length(frame_idx),frames);	
+		frame_idx=frame_idx(1:frames);
+	end
 
 	timevec=frame_idx./fs;
 
@@ -151,7 +188,14 @@ for i=1:length(mov_listing)
 
 	end
 
-	detrended=fb_roi_detrend(dff,timevec,'normalize',0);
+	% detrend?
+
+	if detrend_traces
+		detrended=fb_roi_detrend(dff,timevec,'normalize',0);
+	else
+		detrended=dff;
+	end
+
 	save_fig=figure('visible','off');box off;
 	set(save_fig,'paperpositionmode','auto','position',[100 100 450 900])
 
