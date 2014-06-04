@@ -1,6 +1,24 @@
 function [DFF_MAT,DFF_COMBINE]=fb_batch_maxdff(varargin)
-%fb_select_roi selects an arbitrary number of roi's for plotting
+%Computes the max df/f for a series of movie files, the output
+%is saved to the directory dff by default
 %
+%	[DFF_MAT,DFF_COMBINE]=fb_batch_maxdff(varargin)
+%
+%	The following my be passed as parameter/value pairs:
+%
+%		activity_colormap
+%
+%		filt_rad
+%
+%		filt_alpha
+%
+%		save_dir
+%
+%		per
+%
+%		lims
+%
+%		resize
 %
 %
 %
@@ -17,7 +35,6 @@ per=2; % baseline percentile (0 for min)
 resize_correct=1; % correction of parameters for resized movies
 activity_colormap='gray'; % colormap for activity
 resize=1;
-combine='max';
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -29,8 +46,6 @@ for i=1:2:nparams
 			activity_colormap=varargin{i+1};
 		case 'filt_rad'
 			filt_rad=varargin{i+1};
-		case 'trim_per'
-			trim_per=varargin{i+1};
 		case 'filt_alpha'
 			filt_alpha=varargin{i+1};
 		case 'save_dir'
@@ -39,14 +54,8 @@ for i=1:2:nparams
 			per=varargin{i+1};
 		case 'lims'
 			lims=varargin{i+1};
-		case 'mode'
-			mode=varargin{i+1};
 		case 'resize'
 			resize=varargin{i+1};
-		case 'label_color'
-			label_color=varargin{i+1};
-		case 'combine'
-			combine=varargin{i+1};
 	end
 end
 

@@ -1,4 +1,4 @@
-function [EXTRACTED_ROI,STATS]=fb_auto_roi(DIR,varargin)
+function [ROI,STATS]=fb_auto_roi(DIR,varargin)
 %fb_select_roi selects an arbitrary number of roi's for plotting
 %
 %
@@ -14,19 +14,22 @@ function [EXTRACTED_ROI,STATS]=fb_auto_roi(DIR,varargin)
 
 nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
-filt_rad=30; % gauss filter radius
-filt_alpha=10; % gauss filter alpha
+filt_rad=25; % gauss filter radius
+filt_alpha=20; % gauss filter alpha
 lims=2; % contrast prctile limits
-roi_map=colormap('lines');
-save_dir='roi';
-per=2; % baseline percentile (0 for min)
-ave_scale=40; % for adaptive threshold, scale for averaging filter
-med_scale=22; % for removing speckle noise from maximum projection
+roi_map='lines';
+save_dir='auto_roi';
+per=3; % baseline percentile (0 for min)
+ave_scale=80; % for adaptive threshold, scale for averaging filter
+med_scale=20; % for removing speckle noise from maximum projection
 resize_correct=1; % correction of parameters for resized movies
+use_xcorr=0; % doesn't seem to improve matters, but leaving in for completeness
+roi_ver='.01a';
+
 % parameters used for morphological opening
 
-erode_scale=3; % scale (in pxs) for erosion
-dilate_scale=3; % scale (in pxs) for dilation
+erode_scale=2; % scale (in pxs) for erosion
+dilate_scale=2; % scale (in pxs) for dilation
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -63,6 +66,9 @@ end
 if nargin<1 | isempty(DIR), DIR=pwd; end
 
 im_resize=1; % if im_resize does not exist as a variable, the data has not been resized!
+
+%TODO: allow for multiple file selection, concatenate movies
+
 [filename,pathname]=uigetfile({'*.mat'},'Pick a mat file to extract the image data from',fullfile(DIR,'..'));
 load(fullfile(pathname,filename),'mov_data','im_resize');
 
@@ -76,17 +82,18 @@ if resize_correct & im_resize~=1
 
 end
 
-%if exist(save_dir,'dir') rmdir(save_dir,'s'); end
-
 mkdir(save_dir);
 
 disp('Filtering images, this may take a minute...');
 
 [rows,columns,frames]=size(mov_data);
-h=fspecial('gaussian',filt_rad,filt_alpha);
+%h=fspecial('gaussian',filt_rad,filt_alpha);
+h=fspecial('disk',filt_rad);
 
 [nblanks formatstring]=fb_progressbar(100);
 fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+raw_proj=max(mov_data,[],3);
 
 for j=1:frames
 	fprintf(1,formatstring,round((j/frames)*100));	
@@ -95,14 +102,9 @@ end
 
 fprintf(1,'\n');
 
-raw_proj=max(mov_data,[],3);
-clims(1)=prctile(raw_proj(:),lims);
-clims(2)=prctile(raw_proj(:),100-lims);
-
+clims=prctile(raw_proj(:),[lims 100-lims]);
 baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 dff=((mov_data-baseline)./baseline).*100;
-
-clear mov_data;
 
 dff_mu=zeros(size(dff));
 
@@ -119,9 +121,15 @@ end
 fprintf(1,'\n');
 
 pad_pxs=floor(ave_scale/4); % don't take anything too close to the edge
-
 dff=(dff-dff_mu);
-max_proj=max(dff,[],3);
+dff=smooth3(dff,'box',[1 1 9]);
+
+if use_xcorr
+	max_proj=CrossCorrImage(dff); % from LabRigger, appears to work pretty well!
+					   % also could be used to clean up initial pass
+else
+	max_proj=max(dff,[],3);
+end
 
 clear dff;
 clear dff_mu;
@@ -148,23 +156,24 @@ raw_proj=raw_proj./(clims(2)-clims(1)); % normalize to [0,1]
 
 %raw_proj=min(raw_proj,1);
 
-EXTRACTED_ROI={};
+ROI={};
 
 [rows,columns]=size(max_proj);
 
 slmin=min(max_proj(:));
 slmax=max(max_proj(:));
 
-cm1=colormap('gray');
+
+
+% display the anatomical "max projection"
+
+slider_fig=figure('Name',['Auto ROI ver' roi_ver],'NumberTitle','off');
+cm1=gray;
 
 % convert the indexed images to rgb
 
 im1_rgb=ind2rgb(round(raw_proj.*size(cm1,1)),cm1);
 im2_rgb=ind2rgb(max_proj>0,[0 0 0;1 0 0]);
-
-% display the anatomical "max projection"
-
-slider_fig=figure();
 image(im1_rgb);
 
 % now add the mask, change the transparency using the slider
@@ -172,14 +181,25 @@ image(im1_rgb);
 hold on;
 h=image(im2_rgb);
 set(h,'AlphaData',(max_proj>0));
+set(gca,'position',[0 .2 1 .75],'units','normalized')
+axis off;
+
+hed1=uicontrol(slider_fig,'Style','edit','string',num2str(erode_scale),'position',[.45 .01 .1 .1],'units','normalized');
+hed1_label=uicontrol(slider_fig,'Style','text','string','Erode scale','position',[.45 .12 .1 .025],'units','normalized');
+hed2=uicontrol(slider_fig,'Style','edit','string',num2str(dilate_scale),'position',[.3 .01 .1 .1],'units','normalized');
+hed2_label=uicontrol(slider_fig,'Style','text','string','Dilate scale','position',[.3 .12 .1 .025],'units','normalized');
 
 hsl = uicontrol(slider_fig,'Style','slider','Min',slmin,'Max',slmax,...
           'SliderStep',[1e-3 1e-3],'Value',slmin,...
-             'Position',[20 10 200 20]);
-set(hsl,'Callback',{@slider_callback,slider_fig,max_proj,h,erode_scale,dilate_scale})
+             'Position',[.05 .01 .2 .1],'units','normalized');
+set(hsl,'Callback',{@slider_callback,slider_fig,max_proj,h,hed1,hed2})
 
-disp('Press any key in the command window to use current threshold');
-pause();
+done = uicontrol(slider_fig,'Position',[.6 .01 .15 .1],'String','Done',...
+              'Callback','uiresume(gcbf)','units','normalized');
+
+% TODO: replace with uiwait!
+
+uiwait(gcf);
 threshold=get(hsl,'value');
 close(slider_fig);
 
@@ -201,21 +221,23 @@ new_image=imdilate(new_image,se);
 % collect some basic stats if we want to exclude later
 
 conn_comp=bwconncomp(new_image);
+roi_map=eval([ roi_map '(' num2str(length(conn_comp.PixelIdxList)) ')' ]);
 
 STATS=regionprops(conn_comp,'eccentricity','majoraxislength',...
 	'minoraxislength','convexhull','centroid','boundingbox');
 
 % get coordinates and draw ROIs on maximum projection
 
-save_fig=figure('Visible','off');
-imshow(raw_proj);
-colormap(gray);
+save_fig=figure();
+image(uint8(raw_proj.*255));
+colormap(gray(256));
+axis off;
 hold on;
 
 for i=1:length(conn_comp.PixelIdxList);
 
 	[xi,yi]=ind2sub(size(max_proj),conn_comp.PixelIdxList{i});
-	EXTRACTED_ROI{i}=[xi(:) yi(:)]; % get the coordinates
+	ROI{i}=[xi(:) yi(:)]; % get the coordinates
 	tmp=STATS(i).ConvexHull;
 	plot(tmp(:,1),tmp(:,2),'-','linewidth',2,'color',roi_map(i,:));
 	tmp=STATS(i).BoundingBox;
@@ -226,17 +248,24 @@ for i=1:length(conn_comp.PixelIdxList);
 	text(x,y,[num2str(i)],'FontSize',12,'FontName','Helvetica','color','r','FontWeight','bold');
 end
 
+pause();
 fb_multi_fig_save(save_fig,save_dir,'roi_map_auto','tiff','res','100');
 close(save_fig);
-save(fullfile(save_dir,'roi_data_auto.mat'),'EXTRACTED_ROI','STATS');
+save(fullfile(save_dir,'roi_data_auto.mat'),'ROI','STATS');
 
 end
 
-function slider_callback(hObject,eventdata,fig,max_proj,h,erode_scale,dilate_scale)
+function slider_callback(hObject,eventdata,fig,max_proj,h,erode_box,dilate_box)
 
 alpha=.4;
 
 val=get(hObject,'Value');
+
+erode_scale=round(str2num(get(erode_box,'string')));
+set(erode_box,'string',num2str(erode_scale));
+
+dilate_scale=round(str2num(get(dilate_box,'string')));
+set(dilate_box,'string',num2str(dilate_scale));
 
 new_image=max_proj>val;
 new_image=bwmorph(new_image,'clean');

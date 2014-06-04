@@ -28,6 +28,7 @@ outlier_frac=.1; % fraction of pixels that must be outliers in a single frame to
 junk_dir='junk';
 resize_correct=1; % correct parameters if movie has been downsampled
 resize=1; % change to resize the motion-corrected movies (similar to im_resize in fb_template_match.m
+motion_auto=1;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -69,6 +70,8 @@ for i=1:2:nparams
 			resize_correct=varargin{i+1};
 		case 'resize'
 			resize=varargin{i+1};
+		case 'motion_auto'
+			motion_auto=varargin{i+1};
 	end
 end
 
@@ -140,6 +143,8 @@ filt_rad1=filt_rad;
 filt_alpha1=filt_alpha;
 motion_crop1=motion_crop;
 
+dff={};
+
 for i=1:length(mov_listing)
 
 	save_dir=old_save_dir;
@@ -154,8 +159,6 @@ for i=1:length(mov_listing)
 
 	load(fullfile(DIR,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','im_resize');
 
-
-
 	if resize_correct & im_resize~=1
 		disp('Correcting parameters since file has been downsampled...');
 		filt_rad=round(filt_rad1.*im_resize);
@@ -168,20 +171,6 @@ for i=1:length(mov_listing)
 	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2000);
 	[rows,columns,frames]=size(mov_data);
 
-	mov_filt=zeros(size(mov_data));
-
-	disp('Filtering image data...');
-
-	[nblanks formatstring]=fb_progressbar(100);
-	fprintf(1,['Progress:  ' blanks(nblanks)]);
-
-	for j=1:frames
-		fprintf(1,formatstring,round((j/frames)*100));	
-		mov_filt(:,:,j)=imfilter(mov_data(:,:,j),h);
-	end
-
-	fprintf(1,'\n');
-
 	% first do outlier detection
 	
 	if outlier_detect
@@ -190,11 +179,11 @@ for i=1:length(mov_listing)
 
 		% get the median
 
-		mov_med=median(mov_filt,3);
+		mov_med=median(mov_data,3);
 
 		% get the mad
 
-		mov_mad=mad(mov_filt,1,3);
+		mov_mad=mad(mov_data,1,3);
 
 		% do any frames exceed the limit
 
@@ -205,8 +194,8 @@ for i=1:length(mov_listing)
 
 		for j=1:frames
 
-			flag1=mov_filt(:,:,j)<mask1;
-			flag2=mov_filt(:,:,j)>mask2;
+			flag1=mov_data(:,:,j)<mask1;
+			flag2=mov_data(:,:,j)>mask2;
 
 			flag1=sum(flag1(:)==1)>len*outlier_frac;
 			flag2=sum(flag2(:)==1)>len*outlier_frac;	
@@ -225,8 +214,6 @@ for i=1:length(mov_listing)
 
 	if motion_correction && ~outlier_flag
 
-		%new_mov_filt=zeros(rows-2*motion_crop,columns-2*motion_crop,frames);
-
 		disp('Performing motion correction...');
 
 		% have user select file for motion correction template
@@ -234,50 +221,14 @@ for i=1:length(mov_listing)
 		if ~motion_flag
 
 			% correction template, select coordinates
+			% mean works for now, could get more complicated in the future
 
-			disp('Motion correction region selection...');
-			disp('Drag the rectangle to enclose the template region and double-click to finish...');
-
-			corr_tmp=mov_filt(:,:,1);
-
-			overview_fig=figure('Toolbar','none','Menubar','none');
-			overview_img=imshow(corr_tmp./max(corr_tmp(:)));
-			hold on;	
-
-			overview_scroll=imscrollpanel(overview_fig,overview_img);
-			imoverview(overview_img);
-			contrast_handle=imcontrast(overview_img);
-
-			uiwait(contrast_handle);
-			clims=caxis();
-
-			rect_handle=imrect(get(overview_fig,'CurrentAxes'));
-
-			rect_pos=wait(rect_handle);
-
-			y_segment=round([rect_pos(2):rect_pos(2)+rect_pos(4)]);
-			y_segment(y_segment>rows)=[];
-
-			x_segment=round([rect_pos(1):rect_pos(1)+rect_pos(3)]);
-			x_segment(x_segment>columns)=[];
-
-			corr_roi=corr_tmp(y_segment,x_segment);
-
-			clim(1)=prctile(corr_roi(:),30);
-			clim(2)=prctile(corr_roi(:),70);
-
-			corr_roi(corr_roi>clim(2))=clim(2);
-			corr_roi=corr_roi-clim(1);
-			corr_roi=max(corr_roi,0);
-			corr_roi=corr_roi./clim(2);
+			corr_roi=mean(mov_data,3);
 			
-			corr_roi=corr_roi-mean(corr_roi(:));
-			corr_roi=corr_roi./std(corr_roi(:));
-
-			% normalize for motion correction
-			
+			y_segment=1:rows;
+			x_segment=1:columns;
+	
 			correction_fft=fft2(corr_roi);
-			close(overview_fig);
 
 			motion_flag=1;
 
@@ -289,52 +240,47 @@ for i=1:length(mov_listing)
 		for j=1:frames
 
 			fprintf(1,formatstring,round((j/frames)*100));	
-			tmp=mov_filt(y_segment,x_segment,j);
-		
-			clim(1)=prctile(tmp(:),30);
-			clim(2)=prctile(tmp(:),70);
+			
+			% uncomment to test for motion correction, introduces random x,y shifts
 
-			tmp(tmp>clim(2))=clim(2);
-			tmp=tmp-clim(1);
-			tmp=max(tmp,0);
-			tmp=tmp./clim(2);
-
-			tmp=tmp-mean(tmp(:));
-			tmp=tmp./std(tmp(:));
-
+			%tmp=circshift(mov_data(y_segment,x_segment,j),[randi(100) randi(100)]);
+			
+			tmp=mov_data(y_segment,x_segment,j);
+	
 			% last argument is upsample factor
 
-			[output Greg]=dftregistration(correction_fft,fft2(tmp),10);
-			%output
-
-			shift=round(output(3:4));
-			shift(shift>motion_crop)=motion_crop;
-
-			mov_data(:,:,j)=circshift(mov_data(:,:,j),[shift]);
-			mov_filt(:,:,j)=circshift(mov_filt(:,:,j),[shift]);
+			[output Greg]=dftregistration(correction_fft,fft2(tmp),100);
+			mov_data(:,:,j)=abs(ifft2(Greg)); % recover corrected image
 
 		end
-
-		mov_data=mov_data(motion_crop:rows-motion_crop,motion_crop:columns-motion_crop,:);
-		mov_filt=mov_filt(motion_crop:rows-motion_crop,motion_crop:columns-motion_crop,:);
 
 		% save the motion corrected data
 
 		save(fullfile(save_dir,[file '_motioncorrected.mat']),'mov_data','mov_idx',...
-			'frame_idx','mic_data','fs','movie_fs','motion_crop','im_resize','-v7.3');
+			'frame_idx','mic_data','fs','movie_fs','motion_crop','im_resize','motion_correction','-v7.3');
+		
 		fprintf(1,'\n');
 
 		clear mic_data;
-		clear mov_data;
 
 	end
 
-	writer_obj=VideoWriter(fullfile(DIR,save_dir,[file '_dff.avi']));
-	writer_obj.FrameRate=playback_fs;
+	mov_filt=zeros(size(mov_data));
 
-	open(writer_obj);	
+	disp('Filtering image data...');
 
-	mov_norm=mov_filt;
+	[nblanks formatstring]=fb_progressbar(100);
+	fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+	for j=1:frames
+		fprintf(1,formatstring,round((j/frames)*100));	
+		mov_filt(:,:,j)=imfilter(mov_data(:,:,j),h);
+	end
+
+	fprintf(1,'\n');
+
+	clear mov_data;
+	mov_filt=single(mov_filt);
 
 	if baseline==0
 		norm_fact=mean(mov_filt,3);
@@ -348,6 +294,12 @@ for i=1:length(mov_listing)
 		norm_fact=min(mov_filt,[],3);
 	end
 
+	norm_fact=repmat(norm_fact,[1 1 frames]);
+
+	disp('Computing df/f...');
+	
+	mov_norm=((mov_filt-norm_fact)./norm_fact).*100;
+
 	clearvars hline;
 
 	set(0,'currentfigure',fig);
@@ -359,39 +311,25 @@ for i=1:length(mov_listing)
 	% normalize each pixel by its mean over time (median is probably better given
 	% the few frames we're working with)
 
-	norm_lim=zeros(2,frames);
-	raw_lim=zeros(size(norm_lim));
-
 	% average the prctiles across frames, otherwise too costly an operation (would require flattening the whole
 	% whole volume, sucking up way too much RAM)
 
-	mov_norm=zeros(size(mov_filt));
+	disp('Writing maximum projection');
 
-	disp('Computing baseline...');
+	% also save max projection
 
-	[nblanks formatstring]=fb_progressbar(100);
-	fprintf(1,['Progress:  ' blanks(nblanks)]);
+	max_projection=max(mov_norm,[],3); % maximum df/f across time
 
-	for j=1:frames
+	max_projection_clims=prctile(max_projection(:),[lims 100-lims]);
+	max_projection=min(max_projection,max_projection_clims(2)); % clip to max
+	max_projection=max(max_projection-max_projection_clims(1),0); % clip min
+	max_projection=max_projection./(max_projection_clims(2)-max_projection_clims(1)); % normalize to [0,1]
+	max_projection=uint8(max_projection.*255);
 
-		fprintf(1,formatstring,round((j/frames)*100));	
-		
-		tmp=mov_filt(:,:,j);
-		tmp2=((tmp-norm_fact)./norm_fact).*100; % df/f (in percent)
+	imwrite(max_projection,gray(256),fullfile(save_dir,[file '_maxproj.tiff']),'tiff');
 
-		mov_norm(:,:,j)=tmp2;
-
-		norm_lim(:,j)=prctile(tmp2(:),[lims 100-lims]);
-		raw_lim(:,j)=prctile(tmp(:),[lims 100-lims]);
-	end
-
-	fprintf(1,'\n');
-
-	tmp=median(norm_lim,2);
-	norm_lim=tmp;
-
-	tmp=median(raw_lim,2);
-	raw_lim=tmp;
+	norm_lim=prctile(mov_norm(:),[lims 100-lims]);
+	raw_lim=prctile(mov_filt(:),[lims 100-lims]);
 
 	% dff movie
 
@@ -403,6 +341,25 @@ for i=1:length(mov_listing)
 		movie_t(j)=ave_time(idx)./fs;
 		movie_idx(j)=idx;
 	end
+
+	mov_filt=min(mov_filt,raw_lim(2)); % clip to max
+	mov_filt=max(mov_filt-raw_lim(1),0); % clip min
+	mov_filt=mov_filt./(raw_lim(2)-raw_lim(1)); % normalize to [0,1]
+	mov_filt=uint8(mov_filt.*255);
+
+	mov_norm=min(mov_norm,norm_lim(2)); % clip to max
+	mov_norm=max(mov_norm-norm_lim(1),0); % clip min
+	mov_norm=mov_norm./(norm_lim(2)-norm_lim(1)); % normalize to [0,1]
+	mov_norm=uint8(mov_norm.*255);
+
+	if ~outlier_flag
+		dff{end+1}=max_projection;
+	end
+
+	writer_obj=VideoWriter(fullfile(DIR,save_dir,[file '_dff.avi']));
+	writer_obj.FrameRate=playback_fs;
+
+	open(writer_obj);	
 
 	disp('Writing df/f movie...');
 
@@ -424,8 +381,8 @@ for i=1:length(mov_listing)
 		title(['Time ' num2str(frame_t)]);
 
 		ax=subplot(3,1,2:3);
-		imagesc(mov_norm(:,:,j));caxis(norm_lim);
-		colormap(activity_map);freezeColors();
+		image(mov_norm(:,:,j));
+		colormap([ activity_map '(256)' ]);freezeColors();
 		axis off;
 
 		pos=get(ax,'pos');
@@ -434,6 +391,7 @@ for i=1:length(mov_listing)
 
 		hc=colorbar('location','southoutside','position',[pos(1) pos(2)-cb_height*2 pos(3) cb_height]);
 		set(hc,'xaxisloc','bottom');
+		set(hc,'xtick',[1 256],'xticklabel',[ norm_lim ],'TickLength',[0 0]);
 
 		%frame=getframe(fig);
 		frame=im2frame(hardcopy(fig,'-Dzbuffer','-r0'));
@@ -476,8 +434,8 @@ for i=1:length(mov_listing)
 		title(['Time ' num2str(frame_t)]);
 
 		ax=subplot(3,1,2:3);
-		imagesc(mov_filt(:,:,j));caxis(raw_lim);
-		colormap(activity_map);freezeColors();
+		image(mov_filt(:,:,j));
+		colormap([ activity_map '(256)' ]);freezeColors();
 		axis off;
 
 		pos=get(ax,'pos');
@@ -486,6 +444,7 @@ for i=1:length(mov_listing)
 
 		hc=colorbar('location','southoutside','position',[pos(1) pos(2)-cb_height*2 pos(3) cb_height]);
 		set(hc,'xaxisloc','bottom');
+		set(hc,'xtick',[1 256],'xticklabel',[ raw_lim ],'TickLength',[0 0]);
 
 		frame=im2frame(hardcopy(fig,'-Dzbuffer','-r0'));
 		writeVideo(writer_obj,frame);
@@ -494,28 +453,12 @@ for i=1:length(mov_listing)
 
 	end
 
-	fprintf(1,'\n');
-
-	disp('Writing maximum projection');
-
 	close(writer_obj);
-
-	% also save max projection
-
-	max_projection=max(mov_norm,[],3); % maximum df/f across time
-
-	max_lim(1)=prctile(max_projection(:),lims);
-	max_lim(2)=prctile(max_projection(:),100-lims);
-
-	newfig=figure('visible','off');
-	imagesc(max_projection);caxis([max_lim]);
-	colorbar();colormap(gray);
-
-	fb_multi_fig_save(newfig,fullfile(DIR,save_dir),[file '_maxproj'],'png');
-	close([newfig]);
+	fprintf(1,'\n');
 
 	% maybe save the average as a 4-d array so you can remove outliers
 	% save the processed data nad 
+
 
 end
 
@@ -523,5 +466,16 @@ end
 
 % establish 20-30 hz time-frame from min to max timestamp, each frame from each file counts once
 % (counts toward the closets time point)
+
+DFF_MAT=cat(3,dff{:});
+clear dff;
+
+DFF_COMBINE.ave=mean(DFF_MAT,3);
+DFF_COMBINE.max=max(DFF_MAT,[],3);
+
+imwrite(DFF_COMBINE.ave,gray(256),fullfile(save_dir,[ 'ave_maxdff.tiff' ]),'tiff');
+imwrite(DFF_COMBINE.max,gray(256),fullfile(save_dir,[ 'max_maxdff.tiff' ]),'tiff');
+
+save(fullfile(save_dir,[ 'dff_data.mat' ]),'DFF_MAT','DFF_COMBINE','-v7.3');
 
 end

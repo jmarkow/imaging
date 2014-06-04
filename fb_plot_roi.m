@@ -9,7 +9,7 @@ function roi_ave=fb_plot_roi(ROIS,varargin)
 colors=colormap(['winter(' num2str(length(ROIS)) ')']);
 sono_colormap='hot';
 baseline=3;
-ave_fs=100;
+ave_fs=200;
 save_dir='roi';
 template=[];
 fs=24.414e3;
@@ -19,9 +19,10 @@ min_f=0;
 max_f=9e3;
 lims=1;
 dff_scale=20;
-t_scale=2;
+t_scale=.5;
 resize=1;
 detrend_traces=0;
+crop_correct=0;
 
 nparams=length(varargin);
 
@@ -57,6 +58,8 @@ for i=1:2:nparams
 			resize=varargin{i+1};
 		case 'detrend_traces'
 			detrend_traces=varargin{i+1};
+		case 'crop_correct'
+			crop_correct=varargin{i+1};
 	end
 end
 
@@ -81,6 +84,14 @@ mkdir(save_dir);
 
 mov_listing=dir(fullfile(pwd,'*.mat'));
 mov_listing={mov_listing(:).name};
+
+for i=1:length(mov_listing)
+	if strcmp(mov_listing{i},'dff_data.mat')
+		to_del=i;
+	end
+end
+mov_listing(to_del)=[];
+
 roi_n=length(ROIS);
 
 load(fullfile(pwd,mov_listing{1}),'mov_data','mic_data','fs');
@@ -164,6 +175,8 @@ for i=1:length(mov_listing)
 
 	dff=zeros(size(roi_t));
 
+	% interpolate ROIs to a common timeframe
+
 	for j=1:roi_n
 
 		tmp=roi_t(j,:);
@@ -199,33 +212,34 @@ for i=1:length(mov_listing)
 	save_fig=figure('visible','off');box off;
 	set(save_fig,'paperpositionmode','auto','position',[100 100 450 900])
 
+	ax=[];
 	ax(1)=subplot(7,1,1:2);
+
 	imagesc(t,f./1e3,song_image);axis xy;
 	xlabel('Time (in s)');
 	ylabel('Freq. (kHz)');
 	ylim([min_f/1e3 max_f/1e3]);
-	set(gca,'TickDir','out');
+	set(gca,'TickDir','out','xtick',[],'ytick',[min_f/1e3 max_f/1e3],'ticklength',[0 0]);
 	colormap(sono_colormap);freezeColors();
+	box off;
 
 	ax(2)=subplot(7,1,3:7);
 	fb_plot_roi_stackplot(detrended,timevec,'spacing',8,'colors',colors);axis off;
-	line([-.25 -.25],[0 dff_scale],'clipping','off','linewidth',2.5);
+
+	%line([-.25 -.25],[0 dff_scale],'clipping','off','linewidth',2.5);
+
+	line([0 0],[0 dff_scale],'clipping','off','linewidth',2.5);
 	line([0 t_scale],[-5 -5],'clipping','off','linewidth',2.5);	
 	linkaxes(ax,'x');
-
-	% loop through each ROI, average data
-
-	% break into a grid of columns and rows to plot >5 rois
-
-	% plot each roi in a subplot, perhaps use subaxis to keep things close together
+	
+	xlim([timevec(1) timevec(end)]);
 	
 	fb_multi_fig_save(save_fig,save_dir,save_file,'eps,png,fig','res',100);
 	save(fullfile(save_dir,[save_file '.mat']),'roi_t','frame_idx','fs','timevec');
 
 	roi_ave.raw{i}=roi_t; % store for average
 	roi_ave.filename{i}=mov_listing{i};
-	% 1d interpolate all rois to common frame
-
+	
 end
 
 save(fullfile(save_dir,['ave_roi.mat']),'ave_time','roi_ave');

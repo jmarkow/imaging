@@ -1,4 +1,4 @@
-function [EXTRACTED_ROI STATS]=fb_image_roi(IMAGE,varargin)
+function [ROI STATS]=fb_image_roi(IMAGE,varargin)
 %fb_select_roi selects an arbitrary number of roi's for plotting
 %
 %
@@ -14,7 +14,7 @@ filt_rad=12; % gauss filter radius
 filt_alpha=4; % gauss filter alpha
 lims=2; % contrast prctile limits
 roi_color=[1 1 0];
-save_dir='roi';
+save_dir='image_roi';
 label_color=[1 .5 0];
 scale=0;
 label_fontsize=25;
@@ -42,6 +42,7 @@ for i=1:2:nparams
 	end
 end
 
+mkdir(save_dir);
 
 % convert to uint8, faster loading for animation
 
@@ -68,7 +69,7 @@ axis off;
 
 % return a cell array with the ROI
 
-EXTRACTED_ROI={}; % indices for the ROI
+ROI={}; % indices for the ROI
 centroid=[]; % keep the centroids for deleting
 
 [xi,yi]=meshgrid(1:columns,1:rows); % collect all coordinates into xi and yi
@@ -119,7 +120,7 @@ while 1>0
 
 			% clean up
 
-			EXTRACTED_ROI(idx)=[];
+			ROI(idx)=[];
 			centroid(idx,:)=[];
 			ellipses(idx)=[];
 			diameter(idx)=[];
@@ -156,7 +157,7 @@ while 1>0
 	% xi=columns yi=rows
 	% collect the roi
 
-	EXTRACTED_ROI{end+1}=[ yi(idx) xi(idx) ];
+	ROI{end+1}=[ yi(idx) xi(idx) ];
 	centroid(end+1,:)=[ mean(yi(idx)) mean(xi(idx)) ];
 
 	% also store the diameter
@@ -196,7 +197,7 @@ STATS=struct('centroid',centroid,'diameter',diameter);
 % draw rois onto max_proj and be done!
 
 
-save(fullfile(save_dir,'roi_data_image.mat'),'EXTRACTED_ROI','STATS');
+save(fullfile(save_dir,'roi_data_image.mat'),'ROI','STATS');
 fb_multi_fig_save(save_fig,save_dir,'roi_map_image','tiff','res',100);
 close([save_fig]);
 

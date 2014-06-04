@@ -1,4 +1,4 @@
-function [EXTRACTED_ROI STATS]=fb_select_roi(varargin)
+function [ROI STATS]=fb_select_roi(varargin)
 %fb_select_roi selects an arbitrary number of roi's for plotting
 %
 %
@@ -12,15 +12,15 @@ nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
 filt_rad=12; % gauss filter radius
 filt_alpha=4; % gauss filter alpha
-lims=2; % contrast prctile limits
+lims=4; % contrast prctile limits
 roi_color=[1 1 0];
-save_dir='roi';
+save_dir='manual_roi';
 per=2; % baseline percentile (0 for min)
 ave_scale=40; % for adaptive threshold, scale for averaging filter
 resize_correct=1; % correction of parameters for resized movies
 activity_colormap='gray'; % colormap for activity
 mode='dff';
-resize=.5;
+resize=1;
 fig_resize=0;
 label_color=[1 .5 0];
 
@@ -141,6 +141,7 @@ clims=prctile(raw_proj(:),[lims 100-lims]);
 
 baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 dff=((mov_data-baseline)./baseline).*100;
+dff=smooth3(dff,'box',[1 1 5]);
 dff=single(dff); % convert to single before flattening to preserve memory
 
 dff_clims=prctile(dff(:),[lims 100-lims]);
@@ -184,7 +185,7 @@ set(hsl,'Callback',{@slider_callback,slider_fig,dff,h_dff})
 
 % return a cell array with the ROI
 
-EXTRACTED_ROI={}; % indices for the ROI
+ROI={}; % indices for the ROI
 centroid=[]; % keep the centroids for deleting
 
 [xi,yi]=meshgrid(1:columns,1:rows); % collect all coordinates into xi and yi
@@ -235,7 +236,7 @@ while 1>0
 
 			% clean up
 
-			EXTRACTED_ROI(idx)=[];
+			ROI(idx)=[];
 			centroid(idx,:)=[];
 			ellipses(idx)=[];
 			diameter(idx)=[];
@@ -272,7 +273,7 @@ while 1>0
 	% xi=columns yi=rows
 	% collect the roi
 
-	EXTRACTED_ROI{end+1}=[ yi(idx) xi(idx) ];
+	ROI{end+1}=[ yi(idx) xi(idx) ];
 	centroid(end+1,:)=[ mean(yi(idx)) mean(xi(idx)) ];
 
 	dist=pdist(h,'euclidean');
@@ -307,8 +308,8 @@ if resize~=1
 	
 	disp('Putting ROI coordinates back into the original movie frame...');
 
-	for i=1:length(EXTRACTED_ROI)
-		EXTRACTED_ROI{i}=EXTRACTED_ROI{i}.*(1/resize);
+	for i=1:length(ROI)
+		ROI{i}=ROI{i}.*(1/resize);
 		centroid(i,:)=centroid(i,:).*(1/resize);
 	end
 end
@@ -317,7 +318,7 @@ end
 
 STATS=struct('centroid',centroid,'diameter',diameter);
 
-save(fullfile(save_dir,'roi_data_manual.mat'),'EXTRACTED_ROI','STATS');
+save(fullfile(save_dir,'roi_data_manual.mat'),'ROI','STATS');
 fb_multi_fig_save(save_fig,save_dir,'roi_map_manual','tiff','res',100);
 close([save_fig]);
 
