@@ -85,6 +85,7 @@ mkdir(save_dir);
 mov_listing=dir(fullfile(pwd,'*.mat'));
 mov_listing={mov_listing(:).name};
 
+to_del=[];
 for i=1:length(mov_listing)
 	if strcmp(mov_listing{i},'dff_data.mat')
 		to_del=i;
