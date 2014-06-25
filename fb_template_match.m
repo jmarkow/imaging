@@ -5,7 +5,7 @@ function fb_template_match(TEMPLATE,varargin)
 %	fb_template_match(TEMPLATE,varargin)
 %	
 %	TEMPLATE
-%	template (vector, default: user selects via GUI)
+%	template (vector, default: empty, user selects via GUI)
 %
 %	the following may be passed as parameter/value pairs:
 %
@@ -46,7 +46,7 @@ extract_sounds=1;
 out_dir='';
 sound_dir='';
 template_data=[];
-im_resize=[];
+im_resize=[]; % setting this to .5 seems reasonable, depends on required resolution
 padding=[.2 .2];
 
 % parameter collection

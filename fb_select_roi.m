@@ -12,17 +12,17 @@ nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
 filt_rad=12; % gauss filter radius
 filt_alpha=4; % gauss filter alpha
-lims=4; % contrast prctile limits
-roi_color=[1 1 0];
+lims=.5; % contrast prctile limits
+roi_map='lines';
 save_dir='manual_roi';
 per=2; % baseline percentile (0 for min)
-ave_scale=40; % for adaptive threshold, scale for averaging filter
 resize_correct=1; % correction of parameters for resized movies
 activity_colormap='gray'; % colormap for activity
 mode='dff';
 resize=1;
 fig_resize=0;
-label_color=[1 .5 0];
+label_color=[1 1 0];
+label_fontsize=50;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -50,8 +50,8 @@ for i=1:2:nparams
 			mode=varargin{i+1};
 		case 'resize'
 			resize=varargin{i+1};
-		case 'roi_color'
-			roi_color=varargin{i+1};
+		case 'roi_map'
+			roi_map=varargin{i+1};
 		case 'fig_resize'
 			fig_resize=varargin{i+1};
 		case 'label_color'
@@ -110,7 +110,7 @@ if resize_correct & im_resize~=1
 	disp('Correcting parameters since file has been downsampled...');
 	filt_rad=round(filt_rad.*im_resize);
 	filt_alpha=filt_alpha.*im_resize;
-
+	label_fontsize=round(label_fontsize*im_resize);
 end
 
 [rows,columns,frames]=size(mov_data);
@@ -126,6 +126,8 @@ h=fspecial('gaussian',filt_rad,filt_alpha);
 [nblanks formatstring]=fb_progressbar(100);
 fprintf(1,['Progress:  ' blanks(nblanks)]);
 
+raw_proj=max(mov_data,[],3);
+
 for j=1:frames
 	fprintf(1,formatstring,round((j/frames)*100));	
 	mov_data(:,:,j)=imfilter(mov_data(:,:,j),h,'circular');
@@ -133,7 +135,6 @@ end
 
 fprintf(1,'\n');
 
-raw_proj=max(mov_data,[],3);
 
 % downsample to get the color limits
 
@@ -141,7 +142,7 @@ clims=prctile(raw_proj(:),[lims 100-lims]);
 
 baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 dff=((mov_data-baseline)./baseline).*100;
-dff=smooth3(dff,'box',[1 1 5]);
+dff=smooth3(dff,'box',[1 1 3]);
 dff=single(dff); % convert to single before flattening to preserve memory
 
 dff_clims=prctile(dff(:),[lims 100-lims]);
@@ -185,7 +186,7 @@ set(hsl,'Callback',{@slider_callback,slider_fig,dff,h_dff})
 
 % return a cell array with the ROI
 
-ROI={}; % indices for the ROI
+ROI.coordinates={}; % indices for the ROI
 centroid=[]; % keep the centroids for deleting
 
 [xi,yi]=meshgrid(1:columns,1:rows); % collect all coordinates into xi and yi
@@ -231,12 +232,12 @@ while 1>0
 
 		if length(centroid)>0	
 		
-			del=inpolygon(centroid(:,2),centroid(:,1),h(:,1),h(:,2));
+			del=inpolygon(centroid(:,1),centroid(:,2),h(:,1),h(:,2));
 			idx=find(del);
 
 			% clean up
 
-			ROI(idx)=[];
+			ROI.coordinates(idx)=[];
 			centroid(idx,:)=[];
 			ellipses(idx)=[];
 			diameter(idx)=[];
@@ -273,8 +274,8 @@ while 1>0
 	% xi=columns yi=rows
 	% collect the roi
 
-	ROI{end+1}=[ yi(idx) xi(idx) ];
-	centroid(end+1,:)=[ mean(yi(idx)) mean(xi(idx)) ];
+	ROI.coordinates{end+1}=[ xi(idx) yi(idx) ];
+	centroid(end+1,:)=[ mean(xi(idx)) mean(yi(idx)) ];
 
 	dist=pdist(h,'euclidean');
 	diameter(end+1)=max(dist);
@@ -282,7 +283,7 @@ while 1>0
 	set(0,'CurrentFigure',slider_fig);
 	
 	ellipses{end+1}=h;
-	pl_ellipses(end+1)=plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_color);
+	pl_ellipses(end+1)=plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',[1 1 0]);
 
 	% what's inside of the ROI?  this could also be used to normalize fluorescene per 
 	% Svoboda et al. (take an annulus surrounding the ROI)
@@ -292,33 +293,56 @@ while 1>0
 end
 
 save_fig=figure();
-h_rawproj=imagesc(raw_proj);caxis([clims]);
+
+raw_proj=min(raw_proj,clims(2)); % clip to max
+raw_proj=max(raw_proj-clims(1),0); % clip min
+raw_proj=raw_proj./(clims(2)-clims(1)); % normalize to [0,1]
+
+h_rawproj=imagesc(raw_proj);
 hold on;
 colormap(activity_colormap);
 axis off;
 
+roi_map=eval([ roi_map '(' num2str(length(ellipses)) ')' ]);
+
+
 for i=1:length(ellipses)
 	h=ellipses{i};
-	plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_color);
-	text(centroid(i,2),centroid(i,1),sprintf('%i',i),...
-		'color',label_color,'fontsize',30*im_resize);
+	plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_map(i,:));
+	text(centroid(i,1),centroid(i,2),sprintf('%i',i),...
+		'color',label_color,'fontsize',label_fontsize,'fontweight','bold');
 end
 
 if resize~=1
 	
 	disp('Putting ROI coordinates back into the original movie frame...');
 
-	for i=1:length(ROI)
-		ROI{i}=ROI{i}.*(1/resize);
-		centroid(i,:)=centroid(i,:).*(1/resize);
+	for i=1:length(ROI.coordinates)
+		ROI.coordinates{i}=ROI.coordinates{i}.*(1/resize);
 	end
+
+	centroid=centroid.*(1/resize);
+	diameter=diameter.*(1/resize);
+
 end
+
+for i=1:length(ROI.coordinates)
+	ROI.stats(i).Centroid=mean(ROI.coordinates{i});
+	ROI.stats(i).Diameter=max(pdist(ROI.coordinates{i},'euclidean'));
+	k=convhull(ROI.coordinates{i}(:,1),ROI.coordinates{i}(:,2));
+	ROI.stats(i).ConvexHull=ROI.coordinates{i}(k,:);
+
+end
+
+ROI.type='manual';
+ROI.reference_image=raw_proj;
+
+% get convex hulls and 
 
 % draw rois onto max_proj and be done!
 
-STATS=struct('centroid',centroid,'diameter',diameter);
+save(fullfile(save_dir,'roi_data_manual.mat'),'ROI');
 
-save(fullfile(save_dir,'roi_data_manual.mat'),'ROI','STATS');
 fb_multi_fig_save(save_fig,save_dir,'roi_map_manual','tiff','res',100);
 close([save_fig]);
 

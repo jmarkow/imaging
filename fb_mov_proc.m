@@ -18,7 +18,6 @@ save_dir='proc'; % save directory
 activity_map='gray'; % colormap for activity
 cb_height=.03; % colorbar height (in normalized units)
 motion_correction=1; % 0 for no correction, 1 for correction
-motion_crop=20; % allowable crop for motion correction (deleted for later movies)
 per=0; % percentile to use for baseline compution (robust minimum)
 outlier_detect=1; % 0 for no outlier detection, 1 for detection
 outlier_mads=6; % number of median absolute deviations from the median a pixel must be
@@ -27,7 +26,7 @@ outlier_frac=.1; % fraction of pixels that must be outliers in a single frame to
 		 % movie
 junk_dir='junk';
 resize_correct=1; % correct parameters if movie has been downsampled
-resize=1; % change to resize the motion-corrected movies (similar to im_resize in fb_template_match.m
+im_resize=1; % change to resize the motion-corrected movies (similar to im_resize in fb_template_match.m
 motion_auto=1;
 
 if mod(nparams,2)>0
@@ -68,8 +67,8 @@ for i=1:2:nparams
 			junk_dir=varargin{i+1};
 		case 'resize_correct'
 			resize_correct=varargin{i+1};
-		case 'resize'
-			resize=varargin{i+1};
+		case 'im_resize'
+			im_resize=varargin{i+1};
 		case 'motion_auto'
 			motion_auto=varargin{i+1};
 	end
@@ -141,9 +140,9 @@ ave_frames=length(ave_time);
 
 filt_rad1=filt_rad;
 filt_alpha1=filt_alpha;
-motion_crop1=motion_crop;
 
 dff={};
+im_resize_store=im_resize;
 
 for i=1:length(mov_listing)
 
@@ -159,17 +158,32 @@ for i=1:length(mov_listing)
 
 	load(fullfile(DIR,mov_listing{i}),'mov_data','mov_idx','frame_idx','mic_data','fs','movie_fs','im_resize');
 
+	[rows,columns,frames]=size(mov_data);
+	
+	if im_resize_store~=1
+
+		[rows,columns]=size(imresize(mov_data(:,:,1),im_resize_store));
+		new_mov_data=zeros(rows,columns,frames);
+
+		for j=1:frames
+			new_mov_data(:,:,j)=imresize(mov_data(:,:,j),im_resize_store);
+			im_resize=im_resize*im_resize_store;
+		end
+
+		mov_data=new_mov_data;
+		clear new_mov_data;
+
+	end
+
 	if resize_correct & im_resize~=1
 		disp('Correcting parameters since file has been downsampled...');
-		filt_rad=round(filt_rad1.*im_resize);
-		filt_alpha=filt_alpha1.*im_resize;
-		motion_crop=round(motion_crop1.*im_resize);
+		filt_rad=max(round(filt_rad1.*im_resize),1);
+		filt_alpha=max(filt_alpha1.*im_resize,1);
 	end
 		
 	h = fspecial('gaussian',filt_rad, filt_alpha); % could use a gaussian as well 
 
 	[template_image,f,t]=fb_pretty_sonogram(double(mic_data),fs,'low',1.5,'zeropad',1024,'N',2048,'overlap',2000);
-	[rows,columns,frames]=size(mov_data);
 
 	% first do outlier detection
 	
@@ -224,7 +238,9 @@ for i=1:length(mov_listing)
 			% mean works for now, could get more complicated in the future
 
 			corr_roi=mean(mov_data,3);
-			
+		
+			% for now use entire image, could consider cropping
+
 			y_segment=1:rows;
 			x_segment=1:columns;
 	
@@ -257,7 +273,7 @@ for i=1:length(mov_listing)
 		% save the motion corrected data
 
 		save(fullfile(save_dir,[file '_motioncorrected.mat']),'mov_data','mov_idx',...
-			'frame_idx','mic_data','fs','movie_fs','motion_crop','im_resize','motion_correction','-v7.3');
+			'frame_idx','mic_data','fs','movie_fs','im_resize','motion_correction','-v7.3');
 		
 		fprintf(1,'\n');
 

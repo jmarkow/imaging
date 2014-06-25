@@ -13,11 +13,11 @@ baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
 filt_rad=12; % gauss filter radius
 filt_alpha=4; % gauss filter alpha
 lims=2; % contrast prctile limits
-roi_color=[1 1 0];
 save_dir='image_roi';
-label_color=[1 .5 0];
+label_color=[1 1 0];
 scale=0;
 label_fontsize=25;
+roi_map='lines';
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -31,12 +31,12 @@ for i=1:2:nparams
 			save_dir=varargin{i+1};
 		case 'lims'
 			lims=varargin{i+1};
-		case 'roi_color'
-			roi_color=varargin{i+1};
 		case 'label_color'
 			label_color=varargin{i+1};
 		case 'lims'
 			lims=varargin{i+1};
+		case 'roi_map'
+			roi_map=varargin{i+1};
 		case 'scale'
 			scale=varargin{i+1};
 	end
@@ -69,7 +69,7 @@ axis off;
 
 % return a cell array with the ROI
 
-ROI={}; % indices for the ROI
+ROI.coordinates={}; % indices for the ROI
 centroid=[]; % keep the centroids for deleting
 
 [xi,yi]=meshgrid(1:columns,1:rows); % collect all coordinates into xi and yi
@@ -115,7 +115,7 @@ while 1>0
 
 		if length(centroid)>0	
 		
-			del=inpolygon(centroid(:,2),centroid(:,1),h(:,1),h(:,2));
+			del=inpolygon(centroid(:,1),centroid(:,2),h(:,1),h(:,2));
 			idx=find(del);
 
 			% clean up
@@ -157,8 +157,8 @@ while 1>0
 	% xi=columns yi=rows
 	% collect the roi
 
-	ROI{end+1}=[ yi(idx) xi(idx) ];
-	centroid(end+1,:)=[ mean(yi(idx)) mean(xi(idx)) ];
+	ROI.coordinates{end+1}=[ xi(idx) yi(idx) ];
+	centroid(end+1,:)=[ mean(xi(idx)) mean(yi(idx)) ];
 
 	% also store the diameter
 
@@ -168,7 +168,7 @@ while 1>0
 	set(0,'CurrentFigure',slider_fig);
 	
 	ellipses{end+1}=h;
-	pl_ellipses(end+1)=plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_color);
+	pl_ellipses(end+1)=plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',[1 1 0]);
 
 	% what's inside of the ROI?  this could also be used to normalize fluorescene per 
 	% Svoboda et al. (take an annulus surrounding the ROI)
@@ -184,20 +184,30 @@ colormap('gray(255)');
 hold on;
 
 axis off;
+roi_map=eval([ roi_map '(' num2str(length(ellipses)) ')' ]);
 
 for i=1:length(ellipses)
 	h=ellipses{i};
-	plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_color);
-	text(centroid(i,2),centroid(i,1),sprintf('%i',i),...
+	plot(h(:,1),h(:,2),'-','linewidth',1.5,'color',roi_map(i,:));
+	text(centroid(i,1),centroid(i,2),sprintf('%i',i),...
 		'color',label_color,'fontsize',label_fontsize,'fontweight','bold');
 end
 
-STATS=struct('centroid',centroid,'diameter',diameter);
+
+for i=1:length(ROI.coordinates)
+	ROI.stats(i).Centroid=mean(ROI.coordinates{i});
+	ROI.stats(i).Diameter=max(pdist(ROI.coordinates{i},'euclidean'));
+	k=convhull(ROI.coordinates{i}(:,1),ROI.coordinates{i}(:,2));
+	ROI.stats(i).ConvexHull=ROI.coordinates{i}(k,:);
+
+end
+
+ROI.type='image';
+ROI.reference_image=im;
 
 % draw rois onto max_proj and be done!
 
-
-save(fullfile(save_dir,'roi_data_image.mat'),'ROI','STATS');
+save(fullfile(save_dir,'roi_data_image.mat'),'ROI');
 fb_multi_fig_save(save_fig,save_dir,'roi_map_image','tiff','res',100);
 close([save_fig]);
 

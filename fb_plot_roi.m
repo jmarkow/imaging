@@ -6,7 +6,7 @@ function roi_ave=fb_plot_roi(ROIS,varargin)
 %
 %
 
-colors=colormap(['winter(' num2str(length(ROIS)) ')']);
+colors=eval(['winter(' num2str(length(ROIS.coordinates)) ')']);
 sono_colormap='hot';
 baseline=3;
 ave_fs=200;
@@ -66,8 +66,8 @@ end
 if resize~=1
 	disp(['Adjusting ROIs for resizing by factor ' num2str(resize)]);
 
-	for i=1:length(ROIS)
-		ROIS{i}=round(ROIS{i}.*resize);
+	for i=1:length(ROIS.coordinates)
+		ROIS.coordinates{i}=round(ROIS.coordinates{i}.*resize);
 	end
 end
 
@@ -93,7 +93,7 @@ for i=1:length(mov_listing)
 end
 mov_listing(to_del)=[];
 
-roi_n=length(ROIS);
+roi_n=length(ROIS.coordinates);
 
 load(fullfile(pwd,mov_listing{1}),'mov_data','mic_data','fs');
 [rows,columns,frames]=size(mov_data);
@@ -167,7 +167,7 @@ for i=1:length(mov_listing)
 		fprintf(1,formatstring,round((j/roi_n)*100));
 
 		for k=1:frames
-			tmp=mov_data(ROIS{j}(:,1),ROIS{j}(:,2),k);
+			tmp=mov_data(ROIS.coordinates{j}(:,2),ROIS.coordinates{j}(:,1),k);
 			roi_t(j,k)=mean(tmp(:));
 		end
 	end
@@ -243,7 +243,8 @@ for i=1:length(mov_listing)
 	
 end
 
-save(fullfile(save_dir,['ave_roi.mat']),'ave_time','roi_ave');
+roi_ave.t=ave_time;
+save(fullfile(save_dir,['ave_roi.mat']),'roi_ave');
 disp('Generating average ROI figure...');
 
 % plot the averages with confidence intervals

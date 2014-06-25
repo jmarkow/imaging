@@ -1,4 +1,4 @@
-function [ROI,STATS]=fb_auto_roi(DIR,varargin)
+function [ROI]=fb_auto_roi(DIR,varargin)
 %fb_select_roi selects an arbitrary number of roi's for plotting
 %
 %
@@ -16,7 +16,7 @@ nparams=length(varargin);
 baseline=2; % 0 for mean, 1 for median, 2 for trimmed mean
 filt_rad=25; % gauss filter radius
 filt_alpha=20; % gauss filter alpha
-lims=2; % contrast prctile limits
+lims=.25; % contrast prctile limits
 roi_map='lines';
 save_dir='auto_roi';
 per=3; % baseline percentile (0 for min)
@@ -25,6 +25,8 @@ med_scale=20; % for removing speckle noise from maximum projection
 resize_correct=1; % correction of parameters for resized movies
 use_xcorr=0; % doesn't seem to improve matters, but leaving in for completeness
 roi_ver='.01a';
+label_fontsize=50;
+label_color=[1 1 0];
 
 % parameters used for morphological opening
 
@@ -79,6 +81,7 @@ if resize_correct & im_resize~=1
 	med_scale=round(med_scale.*im_resize);
 	filt_rad=round(filt_rad.*im_resize);
 	filt_alpha=filt_alpha.*im_resize;
+	label_fontsize=round(label_fontsize.*im_resize);
 
 end
 
@@ -103,6 +106,7 @@ end
 fprintf(1,'\n');
 
 clims=prctile(raw_proj(:),[lims 100-lims]);
+
 baseline=repmat(prctile(mov_data,per,3),[1 1 frames]);
 dff=((mov_data-baseline)./baseline).*100;
 
@@ -156,14 +160,11 @@ raw_proj=raw_proj./(clims(2)-clims(1)); % normalize to [0,1]
 
 %raw_proj=min(raw_proj,1);
 
-ROI={};
 
 [rows,columns]=size(max_proj);
 
 slmin=min(max_proj(:));
 slmax=max(max_proj(:));
-
-
 
 % display the anatomical "max projection"
 
@@ -184,18 +185,18 @@ set(h,'AlphaData',(max_proj>0));
 set(gca,'position',[0 .2 1 .75],'units','normalized')
 axis off;
 
-hed1=uicontrol(slider_fig,'Style','edit','string',num2str(erode_scale),'position',[.45 .01 .1 .1],'units','normalized');
-hed1_label=uicontrol(slider_fig,'Style','text','string','Erode scale','position',[.45 .12 .1 .025],'units','normalized');
-hed2=uicontrol(slider_fig,'Style','edit','string',num2str(dilate_scale),'position',[.3 .01 .1 .1],'units','normalized');
-hed2_label=uicontrol(slider_fig,'Style','text','string','Dilate scale','position',[.3 .12 .1 .025],'units','normalized');
+hed1=uicontrol(slider_fig,'Style','edit','units','normalized','string',num2str(erode_scale),'position',[.45 .01 .1 .1]);
+hed1_label=uicontrol(slider_fig,'Style','text','units','normalized','string','Erode scale','position',[.45 .12 .1 .025]);
+hed2=uicontrol(slider_fig,'Style','edit','units','normalized','string',num2str(dilate_scale),'position',[.3 .01 .1 .1]);
+hed2_label=uicontrol(slider_fig,'Style','text','units','normalized','string','Dilate scale','position',[.3 .12 .1 .025]);
 
-hsl = uicontrol(slider_fig,'Style','slider','Min',slmin,'Max',slmax,...
+hsl = uicontrol(slider_fig,'Style','slider','units','normalized','Min',slmin,'Max',slmax,...
           'SliderStep',[1e-3 1e-3],'Value',slmin,...
-             'Position',[.05 .01 .2 .1],'units','normalized');
+             'Position',[.05 .01 .2 .1]);
 set(hsl,'Callback',{@slider_callback,slider_fig,max_proj,h,hed1,hed2})
 
-done = uicontrol(slider_fig,'Position',[.6 .01 .15 .1],'String','Done',...
-              'Callback','uiresume(gcbf)','units','normalized');
+done = uicontrol(slider_fig,'units','normalized','Position',[.6 .01 .15 .1],'String','Done',...
+              'Callback','uiresume(gcbf)');
 
 % TODO: replace with uiwait!
 
@@ -234,24 +235,37 @@ colormap(gray(256));
 axis off;
 hold on;
 
+% structure for further analysis
+
+ROI.coordinates={};
+ROI.stats=STATS;
+ROI.type='auto'; % auto
+ROI.reference_image=raw_proj; % for drawing later
+
+clearvars STATS type reference_image;
+
 for i=1:length(conn_comp.PixelIdxList);
 
-	[xi,yi]=ind2sub(size(max_proj),conn_comp.PixelIdxList{i});
-	ROI{i}=[xi(:) yi(:)]; % get the coordinates
-	tmp=STATS(i).ConvexHull;
+	[yi,xi]=ind2sub(size(max_proj),conn_comp.PixelIdxList{i});
+	ROI.coordinates{i}=[xi(:) yi(:)]; % get the coordinates
+	tmp=ROI.stats(i).ConvexHull;
 	plot(tmp(:,1),tmp(:,2),'-','linewidth',2,'color',roi_map(i,:));
-	tmp=STATS(i).BoundingBox;
+	tmp=ROI.stats(i).BoundingBox;
 
 	x=tmp(1)+tmp(3)/2;
 	y=tmp(2)+tmp(4)/2;
 
-	text(x,y,[num2str(i)],'FontSize',12,'FontName','Helvetica','color','r','FontWeight','bold');
+	text(x,y,sprintf('%i',i),...
+		'color',label_color,'fontsize',label_fontsize,'fontweight','bold');
+
 end
 
 pause();
 fb_multi_fig_save(save_fig,save_dir,'roi_map_auto','tiff','res','100');
 close(save_fig);
-save(fullfile(save_dir,'roi_data_auto.mat'),'ROI','STATS');
+save(fullfile(save_dir,'roi_data_auto.mat'),'ROI');
+
+% add cleanup feature
 
 end
 
