@@ -50,8 +50,6 @@ disp('Select ROI using cross-hairs to plot');
 disp('Press [RETURN] when finished to exit');
 ax=gca;
 
-%set(gcf,'WindowButtonDownFcn',{@MnAxBtnDwnFcn,ax});
-
 while 1>0
 
 	%[x,y,key]=ginput(1);
@@ -79,18 +77,6 @@ while 1>0
 end
 
 
-function MnAxBtnDwnFcn(obj,event,ax)
-
-axes(ax)
-[x y]=ginput(1);
-%set(handles.tau_rep,'String',num2str(x));
-
-return
-
-end
-
-
-end
 
 
 
