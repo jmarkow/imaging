@@ -69,7 +69,6 @@ end
 if ref_image
 	imagesc(ROI.reference_image);
 	colormap(gray);
-	caxis([clims]);
 	axis off;
 	hold on;
 end
@@ -89,43 +88,49 @@ end
 weights=(weights-min(weights))./(max(weights)-min(weights));
 weights=ceil(weights.*(length(weights)-1)+1);
 
-if strcmp(lower(ROI.type(1)),'m') | strcmp(lower(ROI.type(1)),'a')
-
-	counter=1;	
-	
+if ~isfield(ROI.stats,'ConvexHull')
 	for i=1:nrois
+		k=convhull(ROI.coordinates{i}(:,1),ROI.coordinates{i}(:,2));
+		ROI.stats(i).ConvexHull=ROI.coordinates{i}(k,:);
+	end
+end
 
-		tmp=ROI.stats(i).ConvexHull;
 
-		if filled
-			if ~isempty(weights)
-				fill(tmp(:,1),tmp(:,2),weights_map(weights(i),:))
-			else
-				fill(tmp(:,1),tmp(:,2),roi_map(counter,:))
-			end
-		else	
-			plot(tmp(:,1),tmp(:,2),'-','linewidth',1,'color',roi_map(counter,:));
-		end
-	
-		hold on;
+counter=1;	
 
-		if label
+for i=1:nrois
 
-			x=mean(ROI.coordinates{i}(:,1));
-			y=mean(ROI.coordinates{i}(:,2));
+	tmp=ROI.stats(i).ConvexHull;
 
-			text(x,y,sprintf('%i',i),...
-				'color',label_color,'fontsize',label_fontsize,'fontweight','bold');
-		end
-		
-		if counter<size(roi_map,1)
-			counter=counter+1;
+	if filled
+		if ~isempty(weights)
+			fill(tmp(:,1),tmp(:,2),weights_map(weights(i),:))
 		else
-			counter=1;
+			fill(tmp(:,1),tmp(:,2),roi_map(counter,:))
 		end
-
+	else	
+		plot(tmp(:,1),tmp(:,2),'-','linewidth',1,'color',roi_map(counter,:));
 	end
 
+	hold on;
+
+	if label
+
+		x=mean(ROI.coordinates{i}(:,1));
+		y=mean(ROI.coordinates{i}(:,2));
+
+		text(x,y,sprintf('%i',i),...
+			'color',label_color,'fontsize',label_fontsize,'fontweight','bold');
+	end
+	
+	if counter<size(roi_map,1)
+		counter=counter+1;
+	else
+		counter=1;
+	end
 
 end
 
+if ~ref_image
+	set(gca,'ydir','rev');
+end
