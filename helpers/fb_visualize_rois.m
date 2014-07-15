@@ -8,8 +8,6 @@ function fig_num=fb_visualize_rois(ROI,varargin)
 
 
 
-% select file to load
-
 nparams=length(varargin);
 
 roi_map=[1 0 1];
@@ -24,6 +22,7 @@ filled=0;
 weights=[];
 weights_map='winter';
 ref_image=1;
+ncolors=[];
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -55,6 +54,8 @@ for i=1:2:nparams
 			weights_map=varargin{i+1};
 		case 'ref_image'
 			ref_image=varargin{i+1};
+		case 'ncolors'
+			ncolors=varargin{i+1};
 			
 	end
 end
@@ -77,16 +78,41 @@ end
 
 % scale weights, 64 colors
 
-length(weights)
-
-if ~isempty(weights)
-	weights_map=eval([ weights_map '(' num2str(length(weights)) ')' ]);
+if ~iscell(weights)
+	nweights=length(weights);
+else
+	nweights=sum(cellfun(@length,weights));
 end
 
+if ~isempty(weights)
+	if ~isempty(ncolors)
+		weights_map=eval([ weights_map '(' num2str(ncolors) ')' ]);
+	else
+		weights_map=eval([ weights_map '(' num2str(nweights) ')' ]);
+		ncolors=nweights;
+	end
+
+end
+
+weights_map
 % map weights to colors
 
-weights=(weights-min(weights))./(max(weights)-min(weights));
-weights=ceil(weights.*(length(weights)-1)+1);
+if ~iscell(weights)
+	weights=(weights-min(weights))./(max(weights)-min(weights));
+	weights=ceil(weights.*(ncolors-1)+1);
+else
+
+
+	tmp=cat(2,weights{:});
+	weights_min=min(tmp)
+	weights_max=max(tmp)
+
+	for i=1:length(weights)
+		weights{i}=(weights{i}-weights_min)./(weights_max-weights_min);
+		weights{i}=ceil(weights{i}.*(ncolors-1)+1);
+	end
+end
+
 
 if ~isfield(ROI.stats,'ConvexHull')
 	for i=1:nrois
@@ -101,13 +127,33 @@ counter=1;
 for i=1:nrois
 
 	tmp=ROI.stats(i).ConvexHull;
+	tmp_c=ROI.stats(i).Centroid;
+	npoints=size(tmp,1);
 
 	if filled
-		if ~isempty(weights)
-			fill(tmp(:,1),tmp(:,2),weights_map(weights(i),:))
+		if ~iscell(weights)
+			if ~isempty(weights)
+				fill(tmp(:,1),tmp(:,2),weights_map(weights(i),:))
+			else
+				fill(tmp(:,1),tmp(:,2),roi_map(counter,:))
+			end
 		else
-			fill(tmp(:,1),tmp(:,2),roi_map(counter,:))
+			if ~isempty(weights{i})
+
+				split=length(weights{i});
+				split_points=floor(npoints/split);
+				split_segments=floor(linspace(1,npoints,split+1));
+
+				for j=2:split+1
+					slice=split_segments(j-1):split_segments(j);
+					fill([tmp_c(1);tmp(slice,1)],[tmp_c(2);tmp(slice,2)],...
+						weights_map(weights{i}(j-1),:),'edgecolor','none');
+				end
+			else
+				plot(tmp(:,1),tmp(:,2),'-','linewidth',1,'color',roi_map(counter,:));
+			end
 		end
+
 	else	
 		plot(tmp(:,1),tmp(:,2),'-','linewidth',1,'color',roi_map(counter,:));
 	end
