@@ -45,6 +45,7 @@ a=optimset('MaxFunEvals',1e3);
 
 % options for optimization algorithms
 % not all options are used for all algorithms
+maxIter=1e3;
 options.Display = 'off';
 options.MaxIter = maxIter;
 options.MaxIter = Inf;
@@ -57,15 +58,15 @@ options.MeshAccelerator = 'on'; % off by default
 options.TolFun = 1e-9; % default is 1e-6
 options.TolMesh = 1e-9; % default is 1e-6
 options.TolX = 1e-9; % default is 1e-6
-% options.MaxFunEvals = numel(spkTin)*100; % default is 2000*numberOfVariables
-% options.MaxFunEvals = 20000;
-
 
 for i=1:nrois
 
 	% find first threshold crossing
 
-	curr_roi=detrend(CA_DATA(:,i));
+	% breakpoints in .4 steps
+
+	curr_roi=CA_DATA(:,i);
+	curr_roi=curr_roi-smooth(curr_roi,round(1.5*fs));
 	pos_crossing=find(curr_roi(idx)<thresh_hi&curr_roi(idx+1)>thresh_hi);
 
 	% take the first crossing
@@ -92,7 +93,8 @@ for i=1:nrois
 	init_guess=init_guess./fs;
 	
 	%[x]=fminsearch(@(x) obj_function(x,curr_roi,fs),[ 1 init_guess .03 .2 ],a);
-	x=simulannealbnd(@(x) obj_function(x,curr_roi,fs),[ 1 init_guess .03 .2 ] ,[ 0 init_guess-.04 .002 .05 ],[ 5 init_guess+.05 .03 .3 ],options);
+	x=simulannealbnd(@(x) obj_function(x,curr_roi,fs),... 
+		[ 1 init_guess .03 .2 ] ,[ 0 init_guess-.04 .002 .05 ],[ 5 init_guess+.05 .03 .3 ],options);
 
 	time_vec=[1:length(curr_roi)]./fs;
 
