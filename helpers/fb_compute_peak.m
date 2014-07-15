@@ -24,6 +24,8 @@ full_init_guess= [ 1 1 .1 .1 ];
 full_lbound= [ 0 0 .03 .03 ];
 full_hbound= [ 10 10 .5 .5 ];
 
+onset_only=1;
+
 debug=1;
 
 nparams=length(varargin);
@@ -54,6 +56,8 @@ for i=1:2:nparams
 			onset_init_guess=varargin{i+1};
 		case 'onset_lbound'
 			onset_lbound=varargin{i+1};
+		case 'onset_only'
+			onset_only=varargin{i+1};
 		case 'debug'
 			debug=varargin{i+1};
 	end
@@ -128,6 +132,7 @@ for i=1:nrois
 
 	pos_crossing=pos_crossing(schmitt_flag==1);
 
+	i
 	for j=1:length(pos_crossing)
 
 		spk_t=pos_crossing(j)./fs;	
@@ -153,6 +158,12 @@ for i=1:nrois
 		t_on=x(2);
 		t_0=x(3);
 
+		PEAKS{i}(end+1)=t_0;
+		
+		if onset_only
+			continue;
+		end
+
 		switch lower(method(1))
 
 			case 'f'
@@ -177,7 +188,6 @@ for i=1:nrois
 		y1=calcium_model_onset(A,t_on,t_0,t_1,time_vec);
 		y2=calcium_model_full(t_0,t_on,A_1,A_2,t_1,t_2,time_vec);
 
-		PEAKS{i}(end+1)=t_0;
 
 		if debug
 
