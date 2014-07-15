@@ -7,10 +7,24 @@ function PEAKS=fb_compute_peak(CA_DATA,varargin)
 %
 %
 
-thresh_hi=2;
-thresh_lo=1;
-thresh_t=100;
+thresh_hi=1.5;
+thresh_lo=0;
+thresh_t=40;
 fs=200;
+method='f'; % f-min, simulated annealing, pattern search, etc.
+max_iter=1e3; % maximum iterations for optimization
+t_1=.07
+spk_delta=.04;
+
+onset_init_guess= [ 1 .03 ];
+onset_lbound= [ 0 .002  ];
+onset_hbound= [ 10 .04 ];
+
+full_init_guess= [ 1 1 .1 .1 ];
+full_lbound= [ 0 0 .03 .03 ];
+full_hbound= [ 10 10 .5 .5 ];
+
+debug=1;
 
 nparams=length(varargin);
 
@@ -30,6 +44,18 @@ for i=1:2:nparams
 			thresh_t=varargin{i+1};
 		case 'fs'
 			fs=varargin{i+1};
+		case 'method'
+			method=varargin{i+1};
+		case 't_1'
+			t_1=varargin{i+1};
+		case 'max_iter'
+			max_iter=varargin{i+1};
+		case 'onset_init_guess'
+			onset_init_guess=varargin{i+1};
+		case 'onset_lbound'
+			onset_lbound=varargin{i+1};
+		case 'debug'
+			debug=varargin{i+1};
 	end
 end
 
@@ -43,30 +69,36 @@ PEAKS={};
 idx=1:samples-1;
 a=optimset('MaxFunEvals',1e3);
 
-% options for optimization algorithms
-% not all options are used for all algorithms
 maxIter=1e3;
 options.Display = 'off';
-options.MaxIter = maxIter;
-options.MaxIter = Inf;
+options.MaxIter = max_iter;
 options.UseParallel = 'always';
 options.ObjectiveLimit = 0;
-% options.TimeLimit = 10; % in s / default is Inf
 
-% experimental
-options.MeshAccelerator = 'on'; % off by default
-options.TolFun = 1e-9; % default is 1e-6
-options.TolMesh = 1e-9; % default is 1e-6
-options.TolX = 1e-9; % default is 1e-6
+[b,a]=butter(2,.5/(fs/2),'low');
 
 for i=1:nrois
+
+	PEAKS{i}=[];
 
 	% find first threshold crossing
 
 	% breakpoints in .4 steps
 
 	curr_roi=CA_DATA(:,i);
-	curr_roi=curr_roi-smooth(curr_roi,round(1.5*fs));
+
+	filt_size=round(1.5*fs);
+
+	if exist('smooth')==2
+		smooth_roi=smooth(curr_roi,filt_size);
+	else	
+		smooth_roi=conv(curr_roi,ones(1,filt_size)./filt_size,'same');
+	end
+
+	curr_roi=curr_roi-smooth_roi;
+
+	% get the positive threshold crossings
+
 	pos_crossing=find(curr_roi(idx)<thresh_hi&curr_roi(idx+1)>thresh_hi);
 
 	% take the first crossing
@@ -75,70 +107,144 @@ for i=1:nrois
 		continue;
 	end
 
-	init_guess=pos_crossing(1);
-
-	schmitt_flag=0;
-	if init_guess+thresh_t<samples
-		schmitt_flag=all(curr_roi(init_guess:init_guess+thresh_t)>thresh_lo);
+	if curr_roi(1)>thresh_hi
+		pos_crossing=[ 1;pos_crossing ];
 	end
 
+	schmitt_flag=zeros(1,length(pos_crossing));
+	for j=1:length(pos_crossing)
 
-	% attempt to fit the double exponential model, fit A, onset time, and tau
+		init_guess=pos_crossing(j);
 
-	figure(1);plot(curr_roi);
+		% do we stay above the low threshold for a sufficient amount of time?
 
-	schmitt_flag
-	init_guess
+		if init_guess+thresh_t<samples
+			schmitt_flag(j)=all(curr_roi(init_guess:init_guess+thresh_t)>thresh_lo);
+		end
 
-	init_guess=init_guess./fs;
+		% attempt to fit the double exponential model, fit A, onset time, and tau
+
+	end
+
+	pos_crossing=pos_crossing(schmitt_flag==1);
+
+	for j=1:length(pos_crossing)
+
+		spk_t=pos_crossing(j)./fs;	
+		time_vec=[1:length(curr_roi)]./fs;
+
+		switch lower(method(1))
+
+			case 'f'
+				[x]=fminsearch(@(x) obj_function_onset(x,curr_roi,fs,t_1),...
+					[ onset_init_guess spk_t ],options);
+			case 's'
+				x=simulannealbnd(@(x) obj_function_onset(x,curr_roi,fs,t_1),... 
+					[ onset_init_guess spk_t ] ,...
+					[ onset_lbound spk_t-spk_delta ],...
+					[ onset_hbound spk_t+spk_delta ],...
+					options);
+			otherwise
+				error('Did not understand optimization method');
+		
+		end
+
+		A=x(1);
+		t_on=x(2);
+		t_0=x(3);
+
+		switch lower(method(1))
+
+			case 'f'
+				[x]=fminsearch(@(x) obj_function_full(x,curr_roi,fs,t_0,t_on),...
+					[ full_init_guess spk_t ],options);
+			case 's'
+				x=simulannealbnd(@(x) obj_function_full(x,curr_roi,fs,t_0,t_on),... 
+					[ full_init_guess ] ,...
+					[ full_lbound ],...
+					[ full_hbound ],...
+					options);
+			otherwise
+				error('Did not understand optimization method');
+		
+		end
+		
+		A_1=x(1);
+		A_2=x(2);
+		t_1=x(3);
+		t_2=x(4);
 	
-	%[x]=fminsearch(@(x) obj_function(x,curr_roi,fs),[ 1 init_guess .03 .2 ],a);
-	x=simulannealbnd(@(x) obj_function(x,curr_roi,fs),... 
-		[ 1 init_guess .03 .2 ] ,[ 0 init_guess-.04 .002 .05 ],[ 5 init_guess+.05 .03 .3 ],options);
+		y1=calcium_model_onset(A,t_on,t_0,t_1,time_vec);
+		y2=calcium_model_full(t_0,t_on,A_1,A_2,t_1,t_2,time_vec);
 
-	time_vec=[1:length(curr_roi)]./fs;
+		PEAKS{i}(end+1)=t_0;
 
-	y=calcium_model(x(1),x(2),x(3),x(4),time_vec);
+		if debug
 
-	hold on;	
-	plot(y,'r-');
+			time_vec=1:length(curr_roi);
+			figure(1);plot(time_vec,curr_roi);
 
-	pause();
-	cla;
+			hold on;	
+			plot(time_vec,y1,'r-');
+			plot(time_vec,y2,'g-');
 
+			title(['ROI:  ' num2str(i)]);
+
+			pause();
+			cla;
+		end
+
+	end
 
 end
 
 end
 
-function res = obj_function(x,dff,fs)
+function res = obj_function_onset(x,dff,fs,t_1)
 %
 %
 %
 %
 
 A=x(1);
-t_o=x(2);
-t_on=x(3);
-t_1=x(4);
+t_on=x(2);
+t_0=x(3);
 
 time_vec=[1:length(dff)]./fs;
 
-y=calcium_model(A,t_o,t_on,t_1,time_vec);
-res=sum((y(:)-dff(:)).^2)
+y=calcium_model_onset(A,t_on,t_0,t_1,time_vec);
+res=sum((y(:)-dff(:)).^2);
 
 end
 
+function res = obj_function_full(x,dff,fs,t_0,t_on)
 
+A_1=x(1);
+A_2=x(2);
+t_1=x(3);
+t_2=x(4);
 
+time_vec=[1:length(dff)]./fs;
 
-function y = calcium_model(A,t_o,t_on,t_1,t)
+y=calcium_model_full(t_0,t_on,A_1,A_2,t_1,t_2,time_vec);
+res=sum((y(:)-dff(:)).^2);
+
+end
+
+function y = calcium_model_onset(A,t_on,t_0,t_1,t)
 %
 %
 %
 %
 
-y = A.*(1-exp(-(t-t_o)./t_on)).*exp(-(t-t_o)./t_1);
-y(t<t_o)=0;
+y = A.*(1-exp(-(t-t_0)./t_on)).*exp(-(t-t_0)./t_1);
+y(t<t_0)=0;
+
+end
+
+function y = calcium_model_full(t_0,t_on,A_1,A_2,t_1,t_2,t)
+
+y=(1-exp(-(t-t_0)./t_on)).*(A_1.*exp(-(t-t_0)./t_1)+A_2.*exp(-(t-t_0)./t_2));
+y(t<t_0)=0;
 
 end
