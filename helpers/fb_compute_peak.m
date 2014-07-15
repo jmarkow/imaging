@@ -58,6 +58,12 @@ for i=1:2:nparams
 			onset_lbound=varargin{i+1};
 		case 'onset_only'
 			onset_only=varargin{i+1};
+		case 'full_init_guess'
+			full_init_guess=varargin{i+1};
+		case 'full_lbound'
+			full_lbound=varargin{i+1};
+		case 'full_hbound'
+			full_hbound=varargin{i+1};
 		case 'debug'
 			debug=varargin{i+1};
 	end
@@ -135,6 +141,9 @@ for i=1:nrois
 	i
 	for j=1:length(pos_crossing)
 
+		j
+		pos_crossing(j)
+
 		spk_t=pos_crossing(j)./fs;	
 		time_vec=[1:length(curr_roi)]./fs;
 
@@ -158,9 +167,27 @@ for i=1:nrois
 		t_on=x(2);
 		t_0=x(3);
 
+		y1=calcium_model_onset(A,t_on,t_0,t_1,time_vec);
+
 		PEAKS{i}(end+1)=t_0;
 		
 		if onset_only
+
+			if debug
+
+				%time_vec=1:length(curr_roi);
+				figure(1);plot(time_vec,curr_roi);
+
+				hold on;	
+				plot(time_vec,y1,'r-');
+
+				title(['ROI:  ' num2str(i)]);
+
+				pause();
+				hold off;
+			end
+
+
 			continue;
 		end
 
@@ -185,13 +212,11 @@ for i=1:nrois
 		t_1=x(3);
 		t_2=x(4);
 	
-		y1=calcium_model_onset(A,t_on,t_0,t_1,time_vec);
 		y2=calcium_model_full(t_0,t_on,A_1,A_2,t_1,t_2,time_vec);
-
 
 		if debug
 
-			time_vec=1:length(curr_roi);
+			%time_vec=1:length(curr_roi);
 			figure(1);plot(time_vec,curr_roi);
 
 			hold on;	

@@ -26,8 +26,6 @@ if ~isfield(ROI.stats,'ConvexHull')
 	end
 end
 
-
-
 % get current figure handle, quit when it's closed
 
 h_point=impoint(gca);
@@ -55,6 +53,7 @@ while 1>0
 	%[x,y,key]=ginput(1);
 	
 	h=wait(h_point);
+
 	% h returns x,y check if we're in any of our ROIs
 
 	if isempty(h), break; end
