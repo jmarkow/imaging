@@ -7,12 +7,14 @@ function PEAKS=fb_compute_peak(CA_DATA,varargin)
 %
 %
 
-thresh_hi=.5;
+thresh_hi=1.2;
 thresh_lo=0;
 thresh_t=.3;
+thresh_int=10;
+
 fs=22;
-method='f'; % f-min, simulated annealing, pattern search, etc.
-max_iter=1e3; % maximum iterations for optimization
+method='p'; % f-min, simulated annealing, pattern search, etc.
+max_iter=100; % maximum iterations for optimization
 t_1=.07;
 spk_delta=.04;
 fit_window=[ .1 .5 ];
@@ -47,6 +49,8 @@ for i=1:2:nparams
 			thresh_lo=varargin{i+1};
 		case 'thresh_t'
 			thresh_t=varargin{i+1};
+		case 'thresh_int'
+			thresh_int=varargin{i+1};
 		case 'fs'
 			fs=varargin{i+1};
 		case 'method'
@@ -61,12 +65,16 @@ for i=1:2:nparams
 			onset_lbound=varargin{i+1};
 		case 'onset_only'
 			onset_only=varargin{i+1};
+		case 'spk_delta'
+			spk_delta=varargin{i+1};
 		case 'full_init_guess'
 			full_init_guess=varargin{i+1};
 		case 'full_lbound'
 			full_lbound=varargin{i+1};
 		case 'full_hbound'
 			full_hbound=varargin{i+1};
+		case 'fit_window'
+			fit_window=varargin{i+1};
 		case 'debug'
 			debug=varargin{i+1};
 		case 'baseline'
@@ -76,6 +84,7 @@ end
 
 thresh_t=round(thresh_t*fs);
 fit_window=round(fit_window*fs);
+
 % ensure formatting is correct
 
 if isvector(CA_DATA), CA_DATA=CA_DATA(:); end
@@ -84,20 +93,25 @@ if isvector(CA_DATA), CA_DATA=CA_DATA(:); end
 PEAKS={};
 
 idx=1:samples-1;
-a=optimset('MaxFunEvals',1e3);
 
-maxIter=Inf;
 options.Display = 'off';
 options.MaxIter = max_iter;
 options.UseParallel = 'always';
 options.ObjectiveLimit = 0;
 options.TolX=1e-9;
 options.TolFun=1e-9;
-options.MaxFunEvals=Inf;
+options.MaxFunEvals= max_iter;
 
-CA_DATA=fb_roi_detrend(CA_DATA,'fs',fs);
+[nblanks formatstring]=fb_progressbar(100);
+fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+if debug
+	mkdir('debug_peak');
+end
 
 for i=1:nrois
+
+	fprintf(1,formatstring,round((i/nrois)*100));
 
 	PEAKS{i}=[];
 
@@ -137,8 +151,10 @@ for i=1:nrois
 	end
 
 	if debug
-		%time_vec=1:length(curr_roi);
-		figure(1);plot(time_vec,curr_roi);
+		fig=figure(1);
+		cla;plot(time_vec,curr_roi);
+		ylabel('df/f (Percent)');
+		xlabel('Time (s)');
 		hold on;
 	end
 
@@ -188,7 +204,10 @@ for i=1:nrois
 
 		y1=calcium_model_onset(A,t_on,onset_time,t_1,time_vec);
 
-		PEAKS{i}(end+1)=onset_time;
+		if onset_only
+			PEAKS{i}(end+1)=onset_time;
+			continue;
+		end
 			
 		switch lower(method(1))
 
@@ -219,29 +238,34 @@ for i=1:nrois
 
 		y2=calcium_model_full(onset_time,t_on,A_1,A_2,t_1,t_2,time_vec);
 	
-		if trapz(y2)<10
+		if trapz(y2)<thresh_int
 			continue;
 		end	
 
-		if debug
+		PEAKS{i}(end+1)=round(onset_time*fs);
 
+		if debug
 			figure(1);
 			hold on;		
-			plot(time_vec,y1,'g-');
-			plot(time_vec,y2,'r-');
+			
+			h(1)=plot(time_vec,y1,'g-');
+			h(2)=plot(time_vec,y2,'r-');
 
+			legend(h,'Onset fit','Full model');
 			title(['ROI:  ' num2str(i)]);
 
 		end
 
-		curr_roi=curr_roi-y2(:);
+		%curr_roi=curr_roi-y2(:);
 	end
 
 	if debug
-		figure(1);cla;
+		multi_fig_save(fig,'debug_peak',[ 'roi_' num2str(i)],'eps,fig');	
 	end
 
 end
+
+fprintf(1,'\n');
 
 end
 

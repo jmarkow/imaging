@@ -67,7 +67,7 @@ while 1>0
 		
 		if in_roi
 			disp(['Selected ROI ' num2str(i)]);
-			figure(2);plot(CA_DATA(i,:));
+			figure();plot(CA_DATA(:,i));
 			break;
 		end
 

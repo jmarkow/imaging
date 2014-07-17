@@ -27,8 +27,17 @@ DFF=zeros(size(CA_DATA));
 
 % interpolate ROIs to a common timeframe
 
+[nblanks formatstring]=fb_progressbar(100);
+fprintf(1,['Progress:  ' blanks(nblanks)]);
+
+% unfortunately we need to for loop by frames, otherwise
+% we'll eat up too much RAM for large movies
+
+
+
 for i=1:nrois
 
+	fprintf(1,formatstring,round((i/nrois)*100));
 	tmp=CA_DATA(:,i);
 
 	if baseline==0
@@ -44,3 +53,4 @@ for i=1:nrois
 	DFF(:,i)=((tmp-norm_fact)./norm_fact).*100;
 end
 
+fprintf(1,'\n');

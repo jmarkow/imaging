@@ -81,10 +81,10 @@ ave_time=0:1/ave_fs:frames./movie_fs;
 % need to interpolate the average onto a new time bases
 
 ROI_TRACES.raw={};
-ROI_TRACES.interp_dff=zeros(roi_n,length(ave_time));
-ROI_TRACES.interp_raw=zeros(roi_n,length(ave_time));
+ROI_TRACES.interp_dff=zeros(length(ave_time),roi_n);
+ROI_TRACES.interp_raw=zeros(length(ave_time),roi_n);
 
-	% resize if we want
+% resize if we want
 
 if resize~=1
 
@@ -109,7 +109,7 @@ end
 % roi_traces
 
 [rows,columns,frames]=size(MOV_DATA);
-roi_t=zeros(roi_n,frames);
+roi_t=zeros(frames,roi_n);
 
 if length(FRAME_IDX)~=frames
 	warning('Trial %i file %s may be corrupted, frame indices %g not equal to n movie frames %g',...
@@ -132,7 +132,7 @@ for j=1:roi_n
 
 	for k=1:frames
 		tmp=MOV_DATA(ROIS.coordinates{j}(:,2),ROIS.coordinates{j}(:,1),k);
-		roi_t(j,k)=mean(tmp(:));
+		roi_t(k,j)=mean(tmp(:));
 	end
 end
 
@@ -144,7 +144,7 @@ dff=zeros(size(roi_t));
 
 for j=1:roi_n
 
-	tmp=roi_t(j,:);
+	tmp=roi_t(:,j);
 
 	if baseline==0
 		norm_fact=mean(tmp,3);
@@ -156,16 +156,17 @@ for j=1:roi_n
 		norm_fact=prctile(tmp,per);
 	end
 
-	dff(j,:)=((tmp-norm_fact)./norm_fact).*100;
+	dff(:,j)=((tmp-norm_fact)./norm_fact).*100;
 
-	yy=interp1(timevec,dff(j,:),ave_time,'spline');
+	yy=interp1(timevec,dff(:,j),ave_time,'spline');
 	yy2=interp1(timevec,tmp,ave_time,'spline');
 
-	ROI_TRACES.interp_dff(j,:)=yy;
-	ROI_TRACES.interp_raw(j,:)=yy2;
+	ROI_TRACES.interp_dff(:,j)=yy;
+	ROI_TRACES.interp_raw(:,j)=yy2;
 
 end
 
 
 ROI_TRACES.raw=roi_t; % store for average
-ROI_TRACES.t=ave_time;
+ROI_TRACES.interp_t=ave_time;
+ROI_TRACES.t=FRAME_IDX./fs;

@@ -21,6 +21,7 @@ fig_num=[];
 filled=0;
 weights=[];
 weights_map='winter';
+weights_range=[ -inf inf ];
 ref_image=1;
 ncolors=[];
 
@@ -52,6 +53,10 @@ for i=1:2:nparams
 			weights=varargin{i+1};
 		case 'weights_map'
 			weights_map=varargin{i+1};
+		case 'weights_range'
+			weights_range=varargin{i+1};
+		case 'weights_correction'
+			weights_correction=varargin{i+1};
 		case 'ref_image'
 			ref_image=varargin{i+1};
 		case 'ncolors'
@@ -68,6 +73,7 @@ if isempty(fig_num)
 end
 
 if ref_image
+	subplot(9,1,1:8);
 	imagesc(ROI.reference_image);
 	colormap(gray);
 	axis off;
@@ -98,10 +104,17 @@ weights_map
 % map weights to colors
 
 if ~iscell(weights)
+
+	weights_min=min(weights);
+	weights_max=max(weights);
+
 	weights=(weights-min(weights))./(max(weights)-min(weights));
 	weights=ceil(weights.*(ncolors-1)+1);
 else
 
+	for i=1:length(weights)
+		weights{i}(weights{i}<weights_range(1)|weights{i}>weights_range(2))=[];
+	end
 
 	tmp=cat(2,weights{:});
 	weights_min=min(tmp)
@@ -174,8 +187,16 @@ for i=1:nrois
 	else
 		counter=1;
 	end
-
 end
+
+freezeColors();
+
+subplot(9,1,9);
+pts=linspace(0,1,ncolors);
+imagesc(pts);
+set(gca,'XTick',linspace(1,ncolors,4),'XTickLabels',[round([linspace(weights_min,weights_max,4)]*10)/10]+weights_correction,'ytick',[],...
+	'linewidth',1.5,'TickLength',[.02 .02]);
+colormap(weights_map)
 
 if ~ref_image
 	set(gca,'ydir','rev');

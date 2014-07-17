@@ -9,12 +9,10 @@ function ROI=fb_roi_detrend(ROI,varargin)
 % parameter collection
 
 nparams=length(varargin);
-per=0;
-normalize=1;
-cutoff=.2;
+dff=1;
 fs=22;
-win=.6;
-per=2.5;
+win=.4;
+per=12;
 medfilt_size=.4;
 
 method='prctile'; % 'prctile','medianfilt','mean','fft','highpass'
@@ -27,12 +25,14 @@ for i=1:2:nparams
 	switch lower(varargin{i})
 		case 'per'
 			per=varargin{i+1};
-		case 'normalize'
-			normalize=varargin{i+1};
+		case 'dff'
+			dff=varargin{i+1};
 		case 'method'
 			method=varargin{i+1};
 		case 'fs'
 			fs=varargin{i+1};
+		case 'win'
+			win=varargin{i+1};
 	end
 end
 
@@ -63,7 +63,7 @@ for i=1:nrois
 				tmp_baseline=prctile(tmp,per);
 		end
 
-		if normalize
+		if dff
 			tmp=((ROI(j-win_samples,i)-tmp_baseline)./tmp_baseline).*100;
 		else
 			tmp=(ROI(j-win_samples,i)-tmp_baseline);
