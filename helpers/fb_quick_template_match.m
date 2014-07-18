@@ -1,4 +1,4 @@
-function [MATCHES,SCORE]=fb_quick_template_match(MIC_DATA,varargin)
+function [MATCHES,SCORE,TEMPLATE]=fb_quick_template_match(FILE,varargin)
 %
 %
 %
@@ -9,8 +9,12 @@ fs=24.414e3;
 n=1024;
 overlap=1e3;
 down_factor=5;
-
+template=[];
 nparams=length(varargin);
+gif_dir='gif';
+out_dir='extraction';
+dat_dir='syllable_data';
+MATCHES=[];
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -20,18 +24,65 @@ for i=1:2:nparams
 	switch lower(varargin{i})	
 		case 'fs'
 			fs=varargin{i+1};
+		case 'template'
+			template=varargin{i+1};
+		case 'gif_dir'
+			gif_dir=varargin{i+1};
+		case 'out_dir'
+			out_dir=varargin{i+1};
+		case 'dat_dir'
+			dat_dir=varargin{i+1};
 	end
 end
 
 
+if nargin<1 | isempty(FILE)
+	[filename,pathname]=uigetfile({'*.mat'},'Pick a .mat file to retrieve mic data for',fullfile(pwd));
+	[path,file,ext]=fileparts(fullfile(pathname,filename));
+else
+	[path,file,ext]=fileparts(FILE);
+end
+
+load(fullfile(path,[file ext]),'mic_data','fs');
+
 [b,a]=ellip(5,.2,80,[500]/(fs/2),'high');
-MIC_DATA=filtfilt(b,a,double(MIC_DATA));
+mic_data=filtfilt(b,a,double(mic_data));
 
 temp_mat=[];
-TEMPLATE.data=fb_spectro_navigate(MIC_DATA);
-TEMPLATE.features=fb_smscore(TEMPLATE.data,fs);
-file_features=fb_smscore(MIC_DATA,fs);
-file_length=size(file_features{1},2)
+
+mkdir(out_dir);
+
+if isempty(template)
+	
+	TEMPLATE.data=fb_spectro_navigate(mic_data);
+	TEMPLATE.features=fb_smscore(TEMPLATE.data,fs);
+
+	[s,f,t]=pretty_sonogram(TEMPLATE.data,fs,'low',1);
+
+	minf=1;
+	maxf=min(find(f>=10e3));
+
+	imwrite(flipdim(uint8(s(minf:maxf,:)),1),hot(63),fullfile(out_dir,'template.gif'),'gif');
+	save(fullfile(out_dir,'template.mat'),'TEMPLATE');
+
+else
+	
+	TEMPLATE=template;
+	clear template;
+
+end
+
+score_file=fullfile(dat_dir,[ file '_score.mat' ]);
+
+if exist(score_file,'file')
+	load(score_file,'features');
+	file_features=features;
+	clear features;
+else
+	file_features=fb_smscore(mic_data,fs);
+end
+
+file_length=size(file_features{1},2);
 template_length=size(TEMPLATE.features{1},2)-1;
 
 for j=1:length(file_features)
@@ -58,8 +109,31 @@ product_score=score_temp{1};
 
 for j=2:attributes, product_score=product_score.*score_temp{j}; end
 
-[pks,locs]=findpeaks(product_score,'MINPEAKHEIGHT',.5,'MINPEAKDISTANCE',template_length);
+[pks,locs]=findpeaks(product_score,'MINPEAKHEIGHT',2,'MINPEAKDISTANCE',template_length);
 
 SCORE=score_temp;
+
+if isempty(MATCHES)
+    return;
+end
+
 MATCHES(:,1)=(locs*(n-overlap)*down_factor)-n;
 MATCHES(:,2)=MATCHES(:,1)+length(TEMPLATE.data);
+
+mkdir(fullfile(out_dir,gif_dir));
+
+for i=1:size(MATCHES,1)
+
+	% write out sonograms for each match
+
+	[s,f,t]=pretty_sonogram(mic_data(MATCHES(i,1):MATCHES(i,2)),fs,'low',1);
+
+	minf=1;
+	maxf=min(find(f>=10e3));
+
+	savefile=[ file '_' sprintf('%04.0f',i) ];
+
+	imwrite(flipdim(uint8(s(minf:maxf,:)),1),hot(63),fullfile(out_dir,gif_dir,[ savefile '.gif' ]),'gif');
+
+end
+

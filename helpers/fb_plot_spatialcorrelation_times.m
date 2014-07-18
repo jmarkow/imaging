@@ -1,4 +1,4 @@
-function [dist_t,dist_s,data_y]=fb_plot_spatialcorrelation(ROI,PEAKS,varargin)
+function [dist_t,dist_s,data_y,bins]=fb_plot_spatialcorrelation(ROI,PEAKS,varargin)
 %
 %
 %
@@ -14,7 +14,7 @@ nparams=length(varargin);
 exclude=[];
 use_com=0;
 range=[-inf inf];
-
+bin_spacing=100;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -30,6 +30,8 @@ for i=1:2:nparams
 			use_com=varargin{i+1};
 		case 'range'
 			range=varargin{i+1};
+		case 'bin_spacing'
+			bin_spacing=varargin{i+1};
 	end	
 end
 
@@ -103,15 +105,10 @@ end
 %scatter(dist_s(:),dist_t(:));
 
 % bin by dist_s
-
-bins=unique([0:100:1000]);
+bins=0:bin_spacing:1500;
 
 [n,bins_x]=histc(dist_s,bins);
 
 for i=1:length(bins)
 	data_y{i}=dist_t(bins_x==i);
 end
-
-[r,p]=corrcoef(dist_t,dist_s)
-
-

@@ -24,6 +24,8 @@ weights_map='winter';
 weights_range=[ -inf inf ];
 ref_image=1;
 ncolors=[];
+weights_correction=0;
+weights_scale=[];
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -57,6 +59,8 @@ for i=1:2:nparams
 			weights_range=varargin{i+1};
 		case 'weights_correction'
 			weights_correction=varargin{i+1};
+		case 'weights_scale'
+			weights_scale=varargin{i+1};
 		case 'ref_image'
 			ref_image=varargin{i+1};
 		case 'ncolors'
@@ -73,9 +77,9 @@ if isempty(fig_num)
 end
 
 if ref_image
-	subplot(9,1,1:8);
 	imagesc(ROI.reference_image);
 	colormap(gray);
+	freezeColors();
 	axis off;
 	hold on;
 end
@@ -100,13 +104,17 @@ if ~isempty(weights)
 
 end
 
-weights_map
 % map weights to colors
 
 if ~iscell(weights)
 
-	weights_min=min(weights);
-	weights_max=max(weights);
+	if length(weights_scale)<1
+		weights_min=min(weights);
+		weights_max=max(weights);
+	else
+		weights_min=weights_scale(1);
+		weights_max=weights_scale(2);
+	end
 
 	weights=(weights-min(weights))./(max(weights)-min(weights));
 	weights=ceil(weights.*(ncolors-1)+1);
@@ -117,8 +125,14 @@ else
 	end
 
 	tmp=cat(2,weights{:});
-	weights_min=min(tmp)
-	weights_max=max(tmp)
+
+	if length(weights_scale)<1
+		weights_min=min(tmp);
+		weights_max=max(tmp);
+	else
+		weights_min=weights_scale(1);
+		weights_max=weights_scale(2);
+	end
 
 	for i=1:length(weights)
 		weights{i}=(weights{i}-weights_min)./(weights_max-weights_min);
@@ -189,15 +203,17 @@ for i=1:nrois
 	end
 end
 
-freezeColors();
-
-subplot(9,1,9);
-pts=linspace(0,1,ncolors);
-imagesc(pts);
-set(gca,'XTick',linspace(1,ncolors,4),'XTickLabels',[round([linspace(weights_min,weights_max,4)]*10)/10]+weights_correction,'ytick',[],...
-	'linewidth',1.5,'TickLength',[.02 .02]);
-colormap(weights_map)
+%freezeColors();
+%
+%subplot(9,1,9);
+%pts=linspace(0,1,ncolors);
+%imagesc(pts);
+%set(gca,'XTick',linspace(1,ncolors,4),'XTickLabels',[round([linspace(weights_min,weights_max,4)]*10)/10]+weights_correction,'ytick',[],...
+%	'linewidth',1.5,'TickLength',[.02 .02]);
+%colormap(weights_map)
 
 if ~ref_image
+	xlim([0 size(ROI.reference_image,2)]);
+	ylim([0 size(ROI.reference_image,1)]);
 	set(gca,'ydir','rev');
 end

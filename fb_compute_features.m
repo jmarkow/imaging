@@ -16,15 +16,19 @@ if nargin<1 | isempty(DIR), DIR=pwd; end
 
 % collect all mat files in the current directory, excluding score files
 
-[status,result]=unix(['find ' DIR ' -type f -name "*.mat" | egrep -v "score"']);
-matfile=regexp(result,'\n','split');
+
+tmp=dir(fullfile(DIR,'*.mat'));
+
+for i=1:length(tmp)
+	matfile{i}=fullfile(DIR,tmp(i).name);
+end
 
 lowfs=[];
 highfs=[];
 
 parsave=@(filename,features,lowfs,highfs) save(filename,'features','lowfs','highfs');
 
-parfor i=1:length(matfile)-1
+parfor i=1:length(matfile)
 
 	disp([matfile{i}]);
 
@@ -33,7 +37,7 @@ parfor i=1:length(matfile)-1
 	datdir=fullfile(path,'syllable_data');
 	scorefile=fullfile(datdir,[ file '_score.mat']);
 
-	if exist(scorefile,'f')
+	if exist(scorefile,'file')
 		warning('File %s already processed, skipping.',matfile{i});
 		continue;
 	end

@@ -1,4 +1,4 @@
-function PEAKS=fb_compute_peak(CA_DATA,varargin)
+function [LOCS,VALS]=fb_compute_peak(CA_DATA,varargin)
 % Computes the peaks for a calcium trace or series of calcium traces
 %
 %
@@ -9,7 +9,7 @@ function PEAKS=fb_compute_peak(CA_DATA,varargin)
 
 thresh_hi=1.2;
 thresh_lo=0;
-thresh_t=.3;
+thresh_t=.2;
 thresh_int=10;
 
 fs=22;
@@ -32,6 +32,8 @@ onset_only=1;
 baseline=0;
 
 debug=1;
+debug_dir='debug_peak';
+debug_filename='';
 
 nparams=length(varargin);
 
@@ -79,6 +81,10 @@ for i=1:2:nparams
 			debug=varargin{i+1};
 		case 'baseline'
 			baseline=varargin{i+1};
+		case 'debug_dir'
+			debug_dir=varargin{i+1};
+		case 'debug_filename'
+			debug_filename=varargin{i+1};
 	end
 end
 
@@ -90,8 +96,8 @@ fit_window=round(fit_window*fs);
 if isvector(CA_DATA), CA_DATA=CA_DATA(:); end
 [samples,nrois]=size(CA_DATA);
 
-PEAKS={};
-
+LOCS={};
+VALS={};
 idx=1:samples-1;
 
 options.Display = 'off';
@@ -113,13 +119,14 @@ for i=1:nrois
 
 	fprintf(1,formatstring,round((i/nrois)*100));
 
-	PEAKS{i}=[];
+	LOCS{i}=[];
+	VALS{i}=[];
 
 	% find first threshold crossing
 	% center at 0
 
-	curr_roi=CA_DATA(:,i)-median(CA_DATA(:,i));
-    	%curr_roi=CA_DATA(:,i);
+	%curr_roi=CA_DATA(:,i)-median(CA_DATA(:,i));
+    	curr_roi=CA_DATA(:,i);
 
 	% get the positive threshold crossings
 
@@ -161,6 +168,11 @@ for i=1:nrois
 	for j=1:length(pos_crossing)
 		
 		spk_t=pos_crossing(j)./fs;	
+
+		if ~(curr_roi(pos_crossing(j)+1)>thresh_hi)
+			continue;
+		end
+
 		%spk_t=fit_window(1)/fs;
 		%tmp_dff=curr_roi(pos_crossing(j)-fit_window(1):pos_crossing(j)+fit_window(2));
 
@@ -205,7 +217,8 @@ for i=1:nrois
 		y1=calcium_model_onset(A,t_on,onset_time,t_1,time_vec);
 
 		if onset_only
-			PEAKS{i}(end+1)=onset_time;
+			LOCS{i}(end+1)=round(onset_time*fs);
+			VALS{i}(end+1)=max(y1);
 			continue;
 		end
 			
@@ -242,7 +255,8 @@ for i=1:nrois
 			continue;
 		end	
 
-		PEAKS{i}(end+1)=round(onset_time*fs);
+		LOCS{i}(end+1)=round(onset_time*fs);
+		VALS{i}(end+1)=max(y2);
 
 		if debug
 			figure(1);
@@ -256,11 +270,17 @@ for i=1:nrois
 
 		end
 
-		%curr_roi=curr_roi-y2(:);
+		curr_roi=curr_roi-y2(:);
+
+		if debug
+			figure(2);
+			plot(curr_roi);
+		end
+
 	end
 
 	if debug
-		multi_fig_save(fig,'debug_peak',[ 'roi_' num2str(i)],'eps,fig');	
+		multi_fig_save(fig,debug_dir,[ debug_filename '_roi_' sprintf('%04.0f',i) ],'eps,fig');	
 	end
 
 end

@@ -56,7 +56,7 @@ end
 % movie filename one directory down
 
 if strcmp(ext,'.mat')
-	mov_filename=fullfile('..',[file '.tif']);	
+	mov_filename=fullfile([file '.tif']);	
 	load(fullfile(path,[file ext]),'rising_data','fs');
 elseif strcmp(ext,'.tif')
 	mov_filename=[file '.tif'];
