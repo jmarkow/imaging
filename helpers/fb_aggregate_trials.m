@@ -17,6 +17,7 @@ out_dir='extraction';
 save_dir='detrended_aligned';
 dat_dir='trace_data';
 method='prctile'; % 'prctile','medianfilt','mean','fft','highpass'
+thresh=1.5;
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -30,6 +31,8 @@ for i=1:2:nparams
 			out_dir=varargin{i+1};
 		case 'dat_dir'
 			dat_dir=varargin{i+1};
+		case 'thresh'
+			thresh=varargin{i+1};
 	end
 end
 
@@ -71,7 +74,7 @@ for i=1:ntrials
 		AGG_PEAK_LOCS{j}=[AGG_PEAK_LOCS{j} align_peak_locs{j}];
 		AGG_PEAK_VALS{j}=[AGG_PEAK_VALS{j} align_peak_vals{j}];
 
-		if ~isempty(align_peak_locs{j})
+		if any(align_detrended(:,j)>thresh) 
 			AGG_DETRENDED_PKONLY{j}=[AGG_DETRENDED_PKONLY{j} align_detrended(:,j)];
 		end
 

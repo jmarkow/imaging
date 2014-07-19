@@ -47,7 +47,7 @@ sem=st_dev./(sqrt(len));
 
 spacefun=@(M,lambda,C,x) M*(1-exp(-x/(lambda)))+C;
 g=fittype(@(M,lambda,C,x) M*(1-exp(-x/(lambda)))+C);
-f1=fit(XDATA(:),mu(:),g,'startpoint',[ -5 100 0 ]);
+f1=fit(XDATA(:),mu(:),g,'startpoint',[ -20 100 -5 ]);
 x=coeffvalues(f1)
 
 LAMBDA=x(2);

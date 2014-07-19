@@ -3,7 +3,7 @@
 
 [~,result]=system('find . -type f -name spatial_corr.mat');
 
-files=regexp(b,'\n','split');
+files=regexp(result,'\n','split');
 files(end)=[];
 
 load(files{1},'dist_y','dist_bins');

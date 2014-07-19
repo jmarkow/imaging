@@ -7,16 +7,14 @@ function fb_detrend_and_align(DIR,TEMPLATE,ROIS,varargin)
 %
 
 nparams=length(varargin);
-dff=1;
+
 fs=22;
-win=.4;
 per=12;
-medfilt_size=.4;
 cut=25;
 out_dir='extraction';
 save_dir='detrended_aligned';
 dat_dir='trace_data';
-method='prctile'; % 'prctile','medianfilt','mean','fft','highpass'
+padding=[1 1];
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -55,18 +53,24 @@ for i=1:length(file_list)
 
 	[path file ext]=fileparts(file_list{i});
 
+	trace_file=fullfile(dat_dir,[ file '_roitraces.mat' ]);
+	peak_file=fullfile(dat_dir,[ file '_peaks.mat' ]);
+	frame_file=fullfile(dat_dir,[ file '_frameidx.mat' ]);
+
 	% load mat file
 
 	load([file_list{i}],'mic_data','fs');
-	[mov_data,frame_idx]=fb_retrieve_mov(file_list{i});
 
-	movie_fs=1./((frame_idx(2)-frame_idx(1))/fs);
+	if ~exist(trace_file,'file')|~exist(frame_file,'file')
+		[mov_data,frame_idx]=fb_retrieve_mov(file_list{i});
+		movie_fs=1./((frame_idx(2)-frame_idx(1))/fs);
+		save(frame_file,'frame_idx','movie_fs');
+	else
+		load(frame_file,'frame_idx','movie_fs');
+	end
 
 	% now with the mov_data apply rois
-
 	% assume we've loaded in mic_data from the appropriate file
-
-	trace_file=fullfile(dat_dir,[ file '_roitraces.mat' ]);
 
 	if ~exist(trace_file,'file')
 		[roi_traces]=fb_extract_roi_traces(rois,mov_data,frame_idx);
@@ -83,11 +87,10 @@ for i=1:length(file_list)
 
 	% now take the extraction points, align all data
 
-	matches=fb_quick_template_match(file_list{i},'template',TEMPLATE);
+	matches=fb_quick_template_match(file_list{i},'template',TEMPLATE,'padding',padding);
 
 	% fit calcium traces
 
-	peak_file=fullfile(dat_dir,[ file '_peaks.mat' ]);
 
 	if ~exist(peak_file,'file')
 		[dff_peak_locs,dff_peak_vals]=fb_compute_peak(dff_detrended,...
@@ -101,9 +104,9 @@ for i=1:length(file_list)
 
 	cut_frame_idx=frame_idx(cut:end);
 
-	% number of frames spanning the template
+	% number of frames spanning the template and the left and right pads
 
-	template_l=round((length(TEMPLATE.data)/fs)*movie_fs)
+	template_l=round(((length(TEMPLATE.data)/fs)+padding(2)+padding(1))*movie_fs)
 
 	for j=1:size(matches,1)
 
@@ -140,7 +143,8 @@ for i=1:length(file_list)
 		savefile=[ file '_' sprintf('%04.0f',j) ];
 
 		save(fullfile(out_dir,save_dir,[ savefile '.mat' ]),...
-			'align_detrended','align_raw','align_mic_data','align_peak_locs','align_peak_vals','fs','movie_fs','align_frame_idx','rois','matches','cut')
+			'align_detrended','align_raw','align_mic_data','align_peak_locs',...
+				'align_peak_vals','fs','movie_fs','align_frame_idx','rois','matches','cut','padding','TEMPLATE')
 
 	end
 end

@@ -32,6 +32,8 @@ for i=1:2:nparams
 			out_dir=varargin{i+1};
 		case 'dat_dir'
 			dat_dir=varargin{i+1};
+		case 'padding'
+			padding=varargin{i+1};
 	end
 end
 
@@ -113,16 +115,26 @@ for j=2:attributes, product_score=product_score.*score_temp{j}; end
 
 SCORE=score_temp;
 
-if isempty(MATCHES)
+if isempty(locs)
     return;
 end
 
 MATCHES(:,1)=(locs*(n-overlap)*down_factor)-n;
 MATCHES(:,2)=MATCHES(:,1)+length(TEMPLATE.data);
 
+MATCHES(:,1)=MATCHES(:,1)-padding(1)*fs;
+MATCHES(:,2)=MATCHES(:,2)+padding(2)*fs;
+
 mkdir(fullfile(out_dir,gif_dir));
 
+to_del=[];
+
 for i=1:size(MATCHES,1)
+
+	if MATCHES(i,1)<1 | MATCHES(i,2)>length(mic_data)
+		to_del=[to_del i];
+		continue;
+	end
 
 	% write out sonograms for each match
 
@@ -137,3 +149,4 @@ for i=1:size(MATCHES,1)
 
 end
 
+MATCHES(to_del,:)=[];

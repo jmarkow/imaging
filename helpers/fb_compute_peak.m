@@ -8,16 +8,16 @@ function [LOCS,VALS]=fb_compute_peak(CA_DATA,varargin)
 %
 
 thresh_hi=1.2;
-thresh_lo=0;
-thresh_t=.2;
-thresh_int=10;
+thresh_lo=-1;
+thresh_t=.1;
+thresh_int=8;
 
 fs=22;
 method='p'; % f-min, simulated annealing, pattern search, etc.
-max_iter=100; % maximum iterations for optimization
+max_iter=500; % maximum iterations for optimization
 t_1=.07;
 spk_delta=.04;
-fit_window=[ .1 .5 ];
+fit_window=[ .1 .4 ];
 
 onset_init_guess= [ 1 .03 ];
 onset_lbound= [ 0 .002  ];
@@ -125,8 +125,8 @@ for i=1:nrois
 	% find first threshold crossing
 	% center at 0
 
-	%curr_roi=CA_DATA(:,i)-median(CA_DATA(:,i));
-    	curr_roi=CA_DATA(:,i);
+	curr_roi=CA_DATA(:,i)-prctile(CA_DATA(:,i),5);
+    	%curr_roi=CA_DATA(:,i);
 
 	% get the positive threshold crossings
 
@@ -141,13 +141,16 @@ for i=1:nrois
 
        
 		if init_guess+thresh_t<samples
-			schmitt_flag(j)=all(curr_roi(init_guess:init_guess+thresh_t)>thresh_lo);
+			schmitt_flag(j)=all(curr_roi(init_guess+1:init_guess+thresh_t)>thresh_lo);
+		else
+			schmitt_flag(j)=all(curr_roi(init_guess:end)>thresh_lo);
 		end
 
 		% attempt to fit the double exponential model, fit A, onset time, and tau
 
 	end
 
+	schmitt_flag
 	pos_crossing=pos_crossing(schmitt_flag==1);
 	
 	time_vec=[1:length(curr_roi)]./fs;
@@ -165,16 +168,29 @@ for i=1:nrois
 		hold on;
 	end
 
+
+
 	for j=1:length(pos_crossing)
 		
 		spk_t=pos_crossing(j)./fs;	
 
-		if ~(curr_roi(pos_crossing(j)+1)>thresh_hi)
-			continue;
-		end
+		%if ~(curr_roi(pos_crossing(j)+1)>thresh_hi)
+			%continue;
+		%end
 
 		%spk_t=fit_window(1)/fs;
-		%tmp_dff=curr_roi(pos_crossing(j)-fit_window(1):pos_crossing(j)+fit_window(2));
+
+		%fit_win=fit_window;
+		
+		%if pos_crossing(j)-fit_window(1)<1
+		%	fit_win(1)=pos_crossing(j)-fit_window(1);
+		%end
+		%
+		%if pos_crossing(j)+fit_window(2)>length(curr_roi)
+		%	fit_win(2)=length(curr_roi)-pos_crossing(j);
+		%end
+
+		%tmp_dff=curr_roi(pos_crossing(j)-fit_win(1):pos_crossing(j)+fit_win(2));
 
 		tmp_dff=curr_roi;
 		tmp_dff(samples_vec<(pos_crossing(j)-fit_window(1)))=0;
@@ -212,8 +228,9 @@ for i=1:nrois
 		t_on=x(2);
 		t_0=x(3);
 
+		%onset_time=(t_0+pos_crossing(j)/fs)-fit_window(1)/fs
 		onset_time=t_0;
-
+		%new_time_vec=-5:1/fs:time_vec(end)+5;
 		y1=calcium_model_onset(A,t_on,onset_time,t_1,time_vec);
 
 		if onset_only
@@ -249,8 +266,10 @@ for i=1:nrois
 		t_1=x(3);
 		t_2=x(4);
 
+		%y2=calcium_model_full(onset_time,t_on,A_1,A_2,t_1,t_2,new_time_vec);
 		y2=calcium_model_full(onset_time,t_on,A_1,A_2,t_1,t_2,time_vec);
-	
+
+		trapz(y2)	
 		if trapz(y2)<thresh_int
 			continue;
 		end	
@@ -267,15 +286,15 @@ for i=1:nrois
 
 			legend(h,'Onset fit','Full model');
 			title(['ROI:  ' num2str(i)]);
-
+	
 		end
 
 		curr_roi=curr_roi-y2(:);
 
-		if debug
-			figure(2);
-			plot(curr_roi);
-		end
+		%if debug
+		%	figure(2);
+		%	plot(curr_roi);
+		%end
 
 	end
 
