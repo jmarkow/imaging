@@ -1,4 +1,4 @@
-function [AGG_DETRENDED,AGG_PEAK_LOCS,AGG_PEAK_VALS,AGG_DETRENDED_PKONLY]=fb_aggregate_trials(DIR,varargin)
+function [AGG_DETRENDED,AGG_DETRENDED_PKONLY]=fb_aggregate_trials(DIR,varargin)
 %
 %
 %
@@ -71,8 +71,8 @@ for i=1:ntrials
 
 	for j=1:nrois
 
-		AGG_PEAK_LOCS{j}=[AGG_PEAK_LOCS{j} align_peak_locs{j}];
-		AGG_PEAK_VALS{j}=[AGG_PEAK_VALS{j} align_peak_vals{j}];
+		%AGG_PEAK_LOCS{j}=[AGG_PEAK_LOCS{j} align_peak_locs{j}];
+		%AGG_PEAK_VALS{j}=[AGG_PEAK_VALS{j} align_peak_vals{j}];
 
 		if any(align_detrended(:,j)>thresh) 
 			AGG_DETRENDED_PKONLY{j}=[AGG_DETRENDED_PKONLY{j} align_detrended(:,j)];

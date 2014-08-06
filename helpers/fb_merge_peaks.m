@@ -41,7 +41,7 @@ for i=1:length(PEAKS)
 		flag=1;
 
 		for k=1:length(mergelist{i})
-			
+
 
 			if abs(pklist(j)-mean(mergelist{i}{k}))<=win
 				mergelist{i}{k}=[mergelist{i}{k} pklist(j)];
@@ -51,7 +51,7 @@ for i=1:length(PEAKS)
 
 
 		end
-			
+
 		if flag
 			mergelist{i}{end+1}=pklist(j);
 		end

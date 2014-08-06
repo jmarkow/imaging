@@ -11,8 +11,13 @@ w=5;
 symbol_color=[1 0 0];
 linespec='r^';
 error_color=[1 0 0];
-
+xlabels='';
+markersize=10;
+linewidth=1.25;
 nparams=length(varargin);
+
+markerfacecolor=[1 1 1];
+markeredgecolor=[1 0 0];
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -28,6 +33,16 @@ for i=1:2:nparams
 			linespec=varargin{i+1};
 		case 'error_color'
 			error_color=varargin{i+1};
+		case 'xlabels'
+			xlabels=varargin{i+1};
+		case 'markersize'
+			markersize=varargin{i+1};
+		case 'markerfacecolor'
+			markerfacecolor=varargin{i+1};
+		case 'markeredgecolor'
+			markeredgecolor=varargin{i+1};
+		case 'linewidth'
+			linewidth=varargin{i+1};
 	end
 end
 
@@ -56,17 +71,21 @@ LAMBDA=x(2);
 funx=linspace(XDATA(1),XDATA(end),100);
 funeval=spacefun(x(1),x(2),x(3),funx);
 
-w=5;
 figure();
 for i=1:length(mu)
-	line([XDATA(i) XDATA(i)],[mu(i)-sem(i) mu(i)+sem(i)],'color',error_color);
+	line([XDATA(i) XDATA(i)],[mu(i)-sem(i) mu(i)+sem(i)],'color',error_color,'linewidth',linewidth);
 	hold on;
-	line([XDATA(i)-w XDATA(i)+w],[mu(i)-sem(i) mu(i)-sem(i)],'color',error_color);
-	line([XDATA(i)-w XDATA(i)+w],[mu(i)+sem(i) mu(i)+sem(i)],'color',error_color);
+	line([XDATA(i)-w XDATA(i)+w],[mu(i)-sem(i) mu(i)-sem(i)],'color',error_color,'linewidth',linewidth);
+	line([XDATA(i)-w XDATA(i)+w],[mu(i)+sem(i) mu(i)+sem(i)],'color',error_color,'linewidth',linewidth);
 end
 
-plot(XDATA,mu,'r^','color',symbol_color,'markersize',9,'markerfacecolor',[1 1 1],'markeredgecolor',[1 0 0]);
+plot(XDATA,mu,linespec,'color',symbol_color,'markersize',markersize,...
+	'markerfacecolor',markerfacecolor,'markeredgecolor',markeredgecolor,'linewidth',linewidth);
 plot(funx,funeval,'r-','linewidth',1.5);
+
+if ~isempty(xlabels)
+	set(gca,'XTick',XDATA,'XTickLabel',xlabels);
+end
 
 end
 

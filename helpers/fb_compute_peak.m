@@ -14,14 +14,14 @@ thresh_int=8;
 
 fs=22;
 method='p'; % f-min, simulated annealing, pattern search, etc.
-max_iter=500; % maximum iterations for optimization
+max_iter=1000; % maximum iterations for optimization
 t_1=.07;
 spk_delta=.04;
 fit_window=[ .1 .4 ];
 
-onset_init_guess= [ 1 .03 ];
+onset_init_guess= [ 1 .1 ];
 onset_lbound= [ 0 .002  ];
-onset_hbound= [ 10 .03 ];
+onset_hbound= [ 10 .2 ];
 
 full_init_guess= [ 1 1 .1 .1 ];
 full_lbound= [ 0 0 .05 .05 ];
@@ -225,13 +225,14 @@ for i=1:nrois
 		end
 
 		A=x(1);
-		t_on=x(2);
+		t_on=x(2)
 		t_0=x(3);
 
 		%onset_time=(t_0+pos_crossing(j)/fs)-fit_window(1)/fs
 		onset_time=t_0;
 		%new_time_vec=-5:1/fs:time_vec(end)+5;
 		y1=calcium_model_onset(A,t_on,onset_time,t_1,time_vec);
+
 
 		if onset_only
 			LOCS{i}(end+1)=round(onset_time*fs);
@@ -269,13 +270,18 @@ for i=1:nrois
 		%y2=calcium_model_full(onset_time,t_on,A_1,A_2,t_1,t_2,new_time_vec);
 		y2=calcium_model_full(onset_time,t_on,A_1,A_2,t_1,t_2,time_vec);
 
-		trapz(y2)	
 		if trapz(y2)<thresh_int
 			continue;
 		end	
 
-		LOCS{i}(end+1)=round(onset_time*fs);
-		VALS{i}(end+1)=max(y2);
+		[maxval onset_time]=max(y2);
+		
+		%LOCS{i}(end+1)=round(onset_time*fs);
+		%VALS{i}(end+1)=max(y2);
+		%
+		
+		LOCS{i}(end+1)=onset_time;
+		VALS{i}(end+1)=maxval;
 
 		if debug
 			figure(1);

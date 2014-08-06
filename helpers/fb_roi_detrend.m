@@ -12,7 +12,7 @@ nparams=length(varargin);
 dff=1;
 fs=22;
 win=.4;
-per=12;
+per=8;
 medfilt_size=.4;
 
 method='prctile'; % 'prctile','medianfilt','mean','fft','highpass'

@@ -46,7 +46,7 @@ end
 % if no file is specified, get one
 
 if nargin<1 | isempty(FILE)
-	[filename,pathname]=uigetfile({'*.mat'},'Pick a .mat file to retrieve movie data for',fullfile(pwd));
+	[filename,pathname]=uigetfile({'*.mat';'*.tif'},'Pick a .mat file to retrieve movie data for',fullfile(pwd));
 	[path,file,ext]=fileparts(fullfile(pathname,filename));
 else
 	[path,file,ext]=fileparts(FILE);

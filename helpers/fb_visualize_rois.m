@@ -13,7 +13,7 @@ nparams=length(varargin);
 roi_map=[1 0 1];
 bg_map='gray';
 
-label_fontsize=25;
+label_fontsize=9;
 label_color=[1 1 0];
 clims=[0 1];
 label=0;
@@ -22,10 +22,12 @@ filled=0;
 weights=[];
 weights_map='winter';
 weights_range=[ -inf inf ];
-ref_image=1;
+ref_image=[];
 ncolors=[];
 weights_correction=0;
 weights_scale=[];
+tags_id=[];
+tags_label=[];
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
@@ -61,6 +63,12 @@ for i=1:2:nparams
 			weights_correction=varargin{i+1};
 		case 'weights_scale'
 			weights_scale=varargin{i+1};
+		case 'tags_id'
+			tags_id=varargin{i+1};
+		case 'tags_labels'
+			tags_labels=varargin{i+1};
+		case 'tags_colors'
+			tags_colors=varargin{i+1};
 		case 'ref_image'
 			ref_image=varargin{i+1};
 		case 'ncolors'
@@ -76,13 +84,13 @@ if isempty(fig_num)
 	fig_num=figure();
 end
 
-if ref_image
-	imagesc(ROI.reference_image);
-	colormap(gray);
-	freezeColors();
-	axis off;
-	hold on;
-end
+%if ~isempty(ref_image)
+%	imagesc(ROI.reference_image);
+%	colormap(gray);
+%	freezeColors();
+%	axis off;
+%	hold on;
+%end
 
 % scale bar?
 
@@ -148,6 +156,13 @@ if ~isfield(ROI.stats,'ConvexHull')
 	end
 end
 
+if ~isempty(tags_id) & isempty(tags_label)
+
+	for i=1:length(tags_id)
+		tags_label{i}=[ num2str(i) ];
+	end
+
+end
 
 counter=1;	
 
@@ -162,7 +177,11 @@ for i=1:nrois
 			if ~isempty(weights)
 				fill(tmp(:,1),tmp(:,2),weights_map(weights(i),:))
 			else
-				fill(tmp(:,1),tmp(:,2),roi_map(counter,:))
+				if any(isnan(roi_map(i,:)))
+					plot(tmp(:,1),tmp(:,2),'-','color',[1 0 1],'linewidth',1);
+				else
+					fill(tmp(:,1),tmp(:,2),roi_map(i,:),'edgecolor','none')
+				end	
 			end
 		else
 			if ~isempty(weights{i})
@@ -176,24 +195,32 @@ for i=1:nrois
 					fill([tmp_c(1);tmp(slice,1)],[tmp_c(2);tmp(slice,2)],...
 						weights_map(weights{i}(j-1),:),'edgecolor','none');
 				end
-			else
-				plot(tmp(:,1),tmp(:,2),'-','linewidth',1,'color',roi_map(counter,:));
+            else
+             	plot(tmp(:,1),tmp(:,2),'-','linewidth',1,'color',roi_map(1,:));
 			end
 		end
 
 	else	
-		plot(tmp(:,1),tmp(:,2),'-','linewidth',1,'color',roi_map(counter,:));
+	
+		plot(tmp(:,1),tmp(:,2),'-','linewidth',1,'color',roi_map(i,:));
+	
 	end
 
 	hold on;
 
-	if label
+	if ~isempty(tags_id)
 
-		x=mean(ROI.coordinates{i}(:,1));
-		y=mean(ROI.coordinates{i}(:,2));
+		idx=find(tags_id==i);
+		
+		if ~isempty(idx)
+			
+			x=mean(ROI.coordinates{i}(:,1));
+			y=mean(ROI.coordinates{i}(:,2));
 
-		text(x,y,sprintf('%i',i),...
-			'color',label_color,'fontsize',label_fontsize,'fontweight','bold');
+			text(x+5,y+5,tags_label{idx},...
+				'color',label_color,'fontsize',label_fontsize);
+			
+		end
 	end
 	
 	if counter<size(roi_map,1)
@@ -212,7 +239,7 @@ end
 %	'linewidth',1.5,'TickLength',[.02 .02]);
 %colormap(weights_map)
 
-if ~ref_image
+if isempty(ref_image)
 	xlim([0 size(ROI.reference_image,2)]);
 	ylim([0 size(ROI.reference_image,1)]);
 	set(gca,'ydir','rev');

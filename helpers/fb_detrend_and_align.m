@@ -83,7 +83,12 @@ for i=1:length(file_list)
 
 	raw_cut=roi_traces.raw(cut:end,:);
 
-	dff_detrended=fb_roi_detrend(raw_cut,'fs',movie_fs,'dff',1,'win',.6);
+	dff_detrended=fb_roi_detrend(raw_cut,'fs',movie_fs,'dff',1,'win',.4,'per',12);
+
+	%for j=1:size(raw_cut,2)
+	%	figure(1);plot(smooth(dff_detrended(:,j),5));
+	%	pause();
+	%end
 
 	% now take the extraction points, align all data
 
@@ -91,14 +96,13 @@ for i=1:length(file_list)
 
 	% fit calcium traces
 
-
-	if ~exist(peak_file,'file')
-		[dff_peak_locs,dff_peak_vals]=fb_compute_peak(dff_detrended,...
-			'method','p','debug',1,'onset_only',0,'thresh_hi',1,'debug_filename',file,'debug_dir','debug_peak');
-		save(peak_file,'dff_peak_locs','dff_peak_vals');
-	else
-		load(peak_file,'dff_peak_locs','dff_peak_vals');
-	end
+	%if ~exist(peak_file,'file')	
+	%	[dff_peak_locs,dff_peak_vals]=fb_compute_peak(dff_detrended,...
+	%		'method','p','debug',1,'onset_only',0,'thresh_hi',1,'debug_filename',file,'debug_dir','debug_peak');
+	%	save(peak_file,'dff_peak_locs','dff_peak_vals');
+	%else
+	%	load(peak_file,'dff_peak_locs','dff_peak_vals');
+	%end
 
 	% find frame idx closest to the match points
 
@@ -127,24 +131,24 @@ for i=1:length(file_list)
 		align_mic_data=mic_data(matches(j,1):matches(j,2));
 		align_frame_idx=cut_frame_idx(startidx:startidx+template_l);
 
-		align_peak_locs=dff_peak_locs;
-		align_peak_vals=dff_peak_vals;
-		
-		for k=1:length(align_peak_locs)
-			if ~isempty(align_peak_locs{k})
-				to_del=find(align_peak_locs{k}<startidx|(align_peak_locs{k}>(startidx+template_l)));
+		%align_peak_locs=dff_peak_locs;
+		%align_peak_vals=dff_peak_vals;
+		%
+		%for k=1:length(align_peak_locs)
+		%	if ~isempty(align_peak_locs{k})
+		%		to_del=find(align_peak_locs{k}<startidx|(align_peak_locs{k}>(startidx+template_l)));
 
-				align_peak_locs{k}(to_del)=[];
-				align_peak_vals{k}(to_del)=[];
-				align_peak_locs{k}=align_peak_locs{k}-startidx;
-			end
-		end
+		%		align_peak_locs{k}(to_del)=[];
+		%		align_peak_vals{k}(to_del)=[];
+		%		align_peak_locs{k}=align_peak_locs{k}-startidx;
+		%	end
+		%end
 
 		savefile=[ file '_' sprintf('%04.0f',j) ];
 
 		save(fullfile(out_dir,save_dir,[ savefile '.mat' ]),...
-			'align_detrended','align_raw','align_mic_data','align_peak_locs',...
-				'align_peak_vals','fs','movie_fs','align_frame_idx','rois','matches','cut','padding','TEMPLATE')
+			'align_detrended','align_raw','align_mic_data',...
+				'fs','movie_fs','align_frame_idx','rois','matches','cut','padding','TEMPLATE')
 
 	end
 end
