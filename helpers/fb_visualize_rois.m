@@ -84,13 +84,13 @@ if isempty(fig_num)
 	fig_num=figure();
 end
 
-%if ~isempty(ref_image)
-%	imagesc(ROI.reference_image);
-%	colormap(gray);
-%	freezeColors();
-%	axis off;
-%	hold on;
-%end
+if ~isempty(ref_image)
+	imagesc(ROI.reference_image);
+	colormap(gray);
+	freezeColors();
+	axis off;
+	hold on;
+end
 
 % scale bar?
 
