@@ -67,6 +67,10 @@ for i=1:ntrials
 
 	load(file_list{i},'align_detrended','align_peak_locs','align_peak_vals');
 
+    if size(align_detrended,1)~=size(AGG_DETRENDED,1)
+        continue;
+    end
+    
 	AGG_DETRENDED(:,:,i)=align_detrended;
 
 	for j=1:nrois
