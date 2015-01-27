@@ -39,10 +39,11 @@ if ~exist(fullfile('analysis','agg_data.mat'),'file')
 
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% new peak selection
+
 	[mergepeaks,mergevals]=fb_compute_peak_simple(agg_pkonly,...
 		'thresh_t',.2,'debug',1,'onset_only',0,'thresh_hi',1,'thresh_int',8,'thresh_dist',.2); % thresh_int previously 5
 
-	save(fullfile('analysis','agg_data.mat'),'agg_detrended','agg_ispeak','agg_pkonly','mergepeaks','newrois');
+	save(fullfile('analysis','agg_data.mat'),'agg_detrended','agg_ispeak','agg_pkonly','mergepeaks','newrois','padding');
 else
 	load(fullfile('analysis','agg_data.mat'));
 end
