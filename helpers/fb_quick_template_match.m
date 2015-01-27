@@ -15,6 +15,7 @@ gif_dir='gif';
 out_dir='extraction';
 dat_dir='syllable_data';
 MATCHES=[];
+padding=[.2 .2];
 
 if mod(nparams,2)>0
 	error('Parameters must be specified as parameter/value pairs');
