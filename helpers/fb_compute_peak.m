@@ -7,7 +7,7 @@ function [LOCS,VALS]=fb_compute_peak(CA_DATA,varargin)
 %
 %
 
-thresh_hi=1.2;
+thresh_hi=2;
 thresh_lo=-1;
 thresh_t=.1;
 thresh_int=8;
@@ -27,7 +27,7 @@ full_init_guess= [ 1 1 .1 .1 ];
 full_lbound= [ 0 0 .05 .05 ];
 full_hbound= [ 10 10 2 2 ];
 
-onset_only=1;
+onset_only=0;
 
 baseline=0;
 
@@ -169,7 +169,6 @@ for i=1:nrois
 	end
 
 
-
 	for j=1:length(pos_crossing)
 		
 		spk_t=pos_crossing(j)./fs;	
@@ -226,7 +225,7 @@ for i=1:nrois
 
 		A=x(1);
 		t_on=x(2)
-		t_0=x(3);
+		t_0=x(3)
 
 		%onset_time=(t_0+pos_crossing(j)/fs)-fit_window(1)/fs
 		onset_time=t_0;
@@ -270,6 +269,7 @@ for i=1:nrois
 		%y2=calcium_model_full(onset_time,t_on,A_1,A_2,t_1,t_2,new_time_vec);
 		y2=calcium_model_full(onset_time,t_on,A_1,A_2,t_1,t_2,time_vec);
 
+
 		if trapz(y2)<thresh_int
 			continue;
 		end	
@@ -292,7 +292,7 @@ for i=1:nrois
 
 			legend(h,'Onset fit','Full model');
 			title(['ROI:  ' num2str(i)]);
-	
+
 		end
 
 		curr_roi=curr_roi-y2(:);
@@ -305,7 +305,7 @@ for i=1:nrois
 	end
 
 	if debug
-		multi_fig_save(fig,debug_dir,[ debug_filename '_roi_' sprintf('%04.0f',i) ],'eps,fig');	
+		markolab_multi_fig_save(fig,debug_dir,[ debug_filename '_roi_' sprintf('%04.0f',i) ],'png,fig');	
 	end
 
 end

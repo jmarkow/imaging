@@ -14,23 +14,8 @@ thresh_int=8;
 thresh_dist=.3;
 
 fs=22;
-method='p'; % f-min, simulated annealing, pattern search, etc.
-max_iter=2e3; % maximum iterations for optimization
-t_1=.07;
-spk_delta=.04;
 fit_window=[ .2 .3 ];
 
-onset_init_guess= [ 1 .1 ];
-onset_lbound= [ 0 .002  ];
-onset_hbound= [ 10 .2 ];
-
-full_init_guess= [ 1 1 .1 .1 ];
-full_lbound= [ 0 0 .05 .05 ];
-full_hbound= [ 10 10 2 2 ];
-
-onset_only=1;
-
-baseline=0;
 
 debug=1;
 debug_dir='debug_peak';
@@ -56,32 +41,10 @@ for i=1:2:nparams
 			thresh_int=varargin{i+1};
 		case 'fs'
 			fs=varargin{i+1};
-		case 'method'
-			method=varargin{i+1};
-		case 't_1'
-			t_1=varargin{i+1};
-		case 'max_iter'
-			max_iter=varargin{i+1};
-		case 'onset_init_guess'
-			onset_init_guess=varargin{i+1};
-		case 'onset_lbound'
-			onset_lbound=varargin{i+1};
-		case 'onset_only'
-			onset_only=varargin{i+1};
-		case 'spk_delta'
-			spk_delta=varargin{i+1};
-		case 'full_init_guess'
-			full_init_guess=varargin{i+1};
-		case 'full_lbound'
-			full_lbound=varargin{i+1};
-		case 'full_hbound'
-			full_hbound=varargin{i+1};
 		case 'fit_window'
 			fit_window=varargin{i+1};
 		case 'debug'
 			debug=varargin{i+1};
-		case 'baseline'
-			baseline=varargin{i+1};
 		case 'debug_dir'
 			debug_dir=varargin{i+1};
 		case 'debug_filename'
@@ -102,14 +65,6 @@ if isvector(CA_DATA), CA_DATA=CA_DATA(:); end
 LOCS={};
 VALS={};
 idx=1:samples-1;
-
-options.Display = 'off';
-options.MaxIter = max_iter;
-options.UseParallel = 'always';
-options.ObjectiveLimit = 0;
-options.TolX=1e-9;
-options.TolFun=1e-9;
-options.MaxFunEvals= max_iter;
 
 [nblanks formatstring]=fb_progressbar(100);
 fprintf(1,['Progress:  ' blanks(nblanks)]);
@@ -136,8 +91,10 @@ for i=1:nrois
 
 	%pos_crossing=find(curr_roi(idx)<thresh_hi&curr_roi(idx+1)>thresh_hi)+1;	
 	%
-	
+
+	s=warning('off','signal:findpeaks:largeMinPeakHeight');
 	[pos_crossing_val,pos_crossing]=findpeaks(curr_roi,'minpeakheight',thresh_hi,'minpeakdistance',round(thresh_dist*fs));
+	warning(s);
 
 	schmitt_flag=zeros(1,length(pos_crossing));
 	
@@ -194,7 +151,7 @@ for i=1:nrois
 
 		end
 
-		turning_point=k
+		turning_point=k;
 
 		%fit_win=round(fit_window*fs)
 
@@ -203,8 +160,6 @@ for i=1:nrois
 		tmp_dff(samples_vec>(pos_crossing(j)+fit_window(2)))=0;
 	
 		peakheight=pos_crossing_val(j)-curr_roi(turning_point);
-
-		peakheight
 
 		if peakheight<thresh_hi*.5
 			continue;
@@ -228,15 +183,15 @@ for i=1:nrois
 			h(1)=plot(time_vec,tmp_dff,'g-');
 			h(2)=plot(time_vec(round(loc)),curr_roi(round(loc)),'r*');
 			h(3)=plot(time_vec(turning_point),curr_roi(turning_point),'b*');
-			legend(h,'Onset fit','Full model');
+			%legend(h,'Onset fit','Full model');
 			title(['ROI:  ' num2str(i)]);
-	
+			pause();	
 		end
 
 	end
 
 	if debug
-		multi_fig_save(fig,debug_dir,[ debug_filename '_roi_' sprintf('%04.0f',i) ],'eps,fig');	
+		%markolab_multi_fig_save(fig,debug_dir,[ debug_filename '_roi_' sprintf('%04.0f',i) ],'png,fig');	
 	end
 
 end
