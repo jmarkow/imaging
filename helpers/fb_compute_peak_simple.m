@@ -1,19 +1,19 @@
 function [LOCS,VALS]=fb_compute_peak(CA_DATA,varargin)
 % Computes the peaks for a calcium trace or series of calcium traces
 %
+% uses a basic Schmitt trigger approach
 %
-%
-% algorithm:  schmitt trigger, double exponential fit (for now)
 %
 %
 
-thresh_hi=1.2;
-thresh_lo=-1;
-thresh_t=.05;
-thresh_int=8;
-thresh_dist=.3;
+thresh_hi=1.2; % peak height threshold
+thresh_lo=-1; % must stay above this value for thresh_t seconds
+thresh_t=.05; % how long transient must stay above thresh_lo
+thresh_int=8; % threshold on the integral of the transient
+thresh_dist=.3; % minimum time between peaks
 
-fs=22;
+fs=22; % frame rate
+smooth_tau=.1; % box car smoothing timescale
 fit_window=[ .2 .3 ];
 
 
@@ -28,7 +28,7 @@ if mod(nparams,2)>0
 end
 
 for i=1:2:nparams
-	switch lower(varargin{i})	
+	switch lower(varargin{i})
 		case 'roi_map'
 			roi_map=varargin{i+1};
 		case 'thresh_hi'
@@ -51,11 +51,14 @@ for i=1:2:nparams
 			debug_filename=varargin{i+1};
 		case 'thresh_dist'
 			thresh_dist=varargin{i+1};
+		case 'smooth_tau'
+			smooth_tau=varargin{i+1};
 	end
 end
 
 thresh_t=round(thresh_t*fs);
 fit_window=round(fit_window*fs);
+smooth_smps=round(smooth_tau*fs);
 
 % ensure formatting is correct
 
@@ -83,13 +86,11 @@ for i=1:nrois
 	% find first threshold crossing
 	% center at 0
 
-	%curr_roi=CA_DATA(:,i)-prctile(CA_DATA(:,i),5);
-    	%curr_roi=smooth(curr_roi,5);
-	curr_roi=smooth(CA_DATA(:,i),5);
+	curr_roi=smooth(CA_DATA(:,i),smooth_smps);
 
 	% get the positive threshold crossings
 
-	%pos_crossing=find(curr_roi(idx)<thresh_hi&curr_roi(idx+1)>thresh_hi)+1;	
+	%pos_crossing=find(curr_roi(idx)<thresh_hi&curr_roi(idx+1)>thresh_hi)+1;
 	%
 
 	s=warning('off','signal:findpeaks:largeMinPeakHeight');
@@ -97,25 +98,23 @@ for i=1:nrois
 	warning(s);
 
 	schmitt_flag=zeros(1,length(pos_crossing));
-	
+
 	for j=1:length(pos_crossing)
 
 		init_guess=pos_crossing(j);
 
 		% do we stay above the low threshold for a sufficient amount of time?
-       
+
 		if init_guess+thresh_t<samples
 			schmitt_flag(j)=all(curr_roi(init_guess+1:init_guess+thresh_t)>thresh_lo);
 		else
 			schmitt_flag(j)=all(curr_roi(init_guess:end)>thresh_lo);
 		end
 
-		% attempt to fit the double exponential model, fit A, onset time, and tau
-
 	end
 
 	pos_crossing=pos_crossing(schmitt_flag==1);
-	
+
 	time_vec=[1:length(curr_roi)]./fs;
 	samples_vec=1:length(curr_roi);
 
@@ -133,8 +132,8 @@ for i=1:nrois
 
 
 	for j=1:length(pos_crossing)
-		
-		spk_t=pos_crossing(j)./fs;	
+
+		spk_t=pos_crossing(j)./fs;
 
 
 		% step back to find the trough
@@ -153,12 +152,10 @@ for i=1:nrois
 
 		turning_point=k;
 
-		%fit_win=round(fit_window*fs)
-
 		tmp_dff=curr_roi;
 		tmp_dff(samples_vec<(pos_crossing(j)-fit_window(1)))=0;
 		tmp_dff(samples_vec>(pos_crossing(j)+fit_window(2)))=0;
-	
+
 		peakheight=pos_crossing_val(j)-curr_roi(turning_point);
 
 		if peakheight<thresh_hi*.5
@@ -167,31 +164,28 @@ for i=1:nrois
 
 		if trapz(tmp_dff)<thresh_int
 			continue;
-		end	
-
+		end
 
 		loc=mean([pos_crossing(j) turning_point]);
 
 		LOCS{i}(end+1)=loc; % 50 per rise time
 		VALS{i}(end+1)=pos_crossing_val(j);
 
-
 		if debug
 			figure(1);
-			hold on;		
-			
+			hold on;
+
 			h(1)=plot(time_vec,tmp_dff,'g-');
 			h(2)=plot(time_vec(round(loc)),curr_roi(round(loc)),'r*');
 			h(3)=plot(time_vec(turning_point),curr_roi(turning_point),'b*');
-			%legend(h,'Onset fit','Full model');
 			title(['ROI:  ' num2str(i)]);
-			pause();	
+			pause();
 		end
 
 	end
 
 	if debug
-		%markolab_multi_fig_save(fig,debug_dir,[ debug_filename '_roi_' sprintf('%04.0f',i) ],'png,fig');	
+		%markolab_multi_fig_save(fig,debug_dir,[ debug_filename '_roi_' sprintf('%04.0f',i) ],'png,fig');
 	end
 
 end
@@ -199,5 +193,3 @@ end
 fprintf(1,'\n');
 
 end
-
-
