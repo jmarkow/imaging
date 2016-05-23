@@ -9,7 +9,7 @@ function [LOCS,VALS]=fb_compute_peak(CA_DATA,varargin)
 thresh_hi=1.2; % peak height threshold
 thresh_lo=-1; % must stay above this value for thresh_t seconds
 thresh_t=.05; % how long transient must stay above thresh_lo
-thresh_int=8; % threshold on the integral of the transient
+thresh_int=8; % threshold on the integral of the transient (within fit window)
 thresh_dist=.3; % minimum time between peaks
 
 fs=22; % frame rate
